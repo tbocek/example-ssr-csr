@@ -76,4 +76,4 @@ Table: `users`
 - `name` (varchar)
 - `email` (varchar)
 
-Data persists in Docker volume `postgres-data`.
+Data persists in directory `.db` in the project directory.
