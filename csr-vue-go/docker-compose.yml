@@ -1,0 +1,28 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "8081:80"
+    volumes:
+      - ./frontend:/usr/share/caddy/
+      - ./Caddyfile:/etc/caddy/Caddyfile
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: "postgres://postgres:password@postgres:5432/postgres?sslmode=disable"
+    
+  postgres:
+     image: postgres:18-alpine
+     environment:
+       POSTGRES_DB: postgres
+       POSTGRES_USER: postgres
+       POSTGRES_PASSWORD: password
+     ports:
+       - "5432:5432"
+     volumes:
+       - ./.db:/var/lib/postgresql
