@@ -1,0 +1,16 @@
+{
+  "name": "preveltekit-games-example",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "preveltekit dev",
+    "build": "preveltekit prod",
+    "stage": "preveltekit stage"
+  },
+  "devDependencies": {
+    "preveltekit": "^1.2.18"
+  },
+  "dependencies": {
+    "svelte": "^5.41.3"
+  }
+}
