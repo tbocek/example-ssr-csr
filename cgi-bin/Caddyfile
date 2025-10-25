@@ -1,0 +1,7 @@
+:8080 {
+    root * /usr/share/caddy
+    route /cgi-bin/* {
+        cgi * /usr/local/bin/dynamic.sh
+    }
+    file_server
+}
