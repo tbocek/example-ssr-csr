@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Management</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><circle cx='5' cy='5' r='4' fill='%23007bff'/></svg>">
+    <script src="https://unpkg.com/htmx.org@2.0.8"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        h1 { color: #333; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        form {
+            background: #f4f4f4;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        input[type="text"], textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            margin: 5px 0;
+        }
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+        .star-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+        }
+        .star-btn:hover {
+            transform: scale(1.2);
+        }
+        .star-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>Game Management - HTMX Demo</h1>
+        
+        <h2>Add New Game</h2>
+        <form hx-post="/api/games" 
+              hx-target="#game-list" 
+              hx-swap="innerHTML"
+              hx-on::after-request="this.reset()">
+            <input type="text" name="title" placeholder="Game Title" required />
+            <textarea name="description" placeholder="Description" required></textarea>
+            <input type="submit" value="Add Game" />
+        </form>
+        
+        <h2>Game List</h2>
+        <div id="game-list" hx-get="/api/games" hx-trigger="load">
+            Loading games...
+        </div>
+    </div>
+</body>
+</html>
