@@ -20,7 +20,7 @@ class EmailNotificationService implements NotificationService {
     }
 }
 
-// @Service to switc@Service  // <-- Uncomment this to use SMS instead of Email
+//@Service  // <-- Uncomment this to use SMS instead of Email
 class SmsNotificationService implements NotificationService {
 
     @Override
