@@ -233,36 +233,6 @@ public void addStar(Long gameId) {
 5. tx.Commit()                  → Never reached
 ```
 
-## Database Schema
-
-**games table:**
-- `id` (serial, primary key)
-- `title` (varchar)
-- `description` (text)
-- `stars` (integer, default 0)
-
-**game_statistics table:**
-- `id` (serial, primary key)
-- `game_id` (integer, unique, foreign key)
-- `total_stars` (integer, default 0)
-- `last_updated` (timestamp)
-
-## Frontend Features
-
-The web UI provides interactive transaction testing:
-
-### Basic Features
-- List all games in a table
-- Add new games via form
-- Click star button to increment count
-- Client-side rendering with Vue.js
-
-### Transaction Demo Features
-- **With TX button** - Tests operation with transaction, shows rollback on failure
-- **Without TX button** - Tests operation without transaction, demonstrates data corruption
-- **Transfer form** - Transfer stars between games with business rule validation
-- **Result display** - Shows JSON response with before/after state
-
 ### Using the Frontend
 
 1. Open `http://localhost:8081` in browser
@@ -278,173 +248,18 @@ The web UI provides interactive transaction testing:
    - If target would exceed 100 stars, transfer rolls back
    - Both games remain unchanged
 
-## Testing the Demo
-
-### Manual Testing via curl
-
-1. Check initial state:
-```bash
-curl http://localhost:8081/api/demo/game/1
-```
-
-2. Test WITH transaction (should rollback):
-```bash
-curl -X POST http://localhost:8081/api/demo/with-transaction/1
-```
-
-3. Verify rollback worked:
-```bash
-curl http://localhost:8081/api/demo/game/1
-# Star count should be UNCHANGED
-```
-
-4. Test WITHOUT transaction (no rollback):
-```bash
-curl -X POST http://localhost:8081/api/demo/without-transaction/1
-```
-
-5. Verify no rollback (data corrupted):
-```bash
-curl http://localhost:8081/api/demo/game/1
-# Star count should be INCREASED (inconsistent!)
-```
-
 ### Verify in Database
 
-```bash
-# Connect to PostgreSQL
-docker compose exec db psql -U postgres -d gamedb
-
-# Check games table
-SELECT * FROM games;
-
-# Check statistics table
-SELECT * FROM game_statistics;
-
-# Join to see relationship
-SELECT g.id, g.title, g.stars, gs.total_stars, gs.last_updated
-FROM games g 
-LEFT JOIN game_statistics gs ON g.id = gs.game_id;
 ```
+docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM games;"
+docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM game_statistics;"
 
-## Best Practices in Go
 
-### 1. Always Use defer for Rollback
+docker exec -it tx-go-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM schema_migrations;"
 
-```go
-tx, err := db.Begin()
-if err != nil {
-    return err
-}
-defer tx.Rollback()  // Safety net - always include this
-
-// ... operations ...
-
-return tx.Commit()  // If commit succeeds, rollback is no-op
-```
-
-**Why:** The `defer` ensures rollback happens even if code panics or returns early.
-
-### 2. Pass Transaction Explicitly
-
-```go
-func updateGame(tx *sql.Tx, gameID int) error {
-    // Function receives tx as parameter
-    _, err := tx.Exec("UPDATE games SET stars = stars + 1 WHERE id = $1", gameID)
-    return err
-}
-
-func updateStats(tx *sql.Tx, gameID int) error {
-    // Same tx used across functions
-    _, err := tx.Exec("UPDATE game_statistics ...")
-    return err
-}
-```
-
-**Why:** Makes transaction scope explicit and visible.
-
-### 3. Return Errors, Let Caller Handle Rollback
-
-```go
-func businessLogic(gameID int) error {
-    tx, err := db.Begin()
-    if err != nil {
-        return err
-    }
-    defer tx.Rollback()
-    
-    if err := updateGame(tx, gameID); err != nil {
-        return err  // Rollback via defer
-    }
-    
-    if err := updateStats(tx, gameID); err != nil {
-        return err  // Rollback via defer
-    }
-    
-    return tx.Commit()
-}
-```
-
-**Why:** Separation of concerns - functions focus on logic, defer handles cleanup.
-
-## Common Pitfalls
-
-### Pitfall 1: Forgetting to use `tx`
-
-```go
-tx, _ := db.Begin()
-defer tx.Rollback()
-
-db.Exec("UPDATE ...")  // WRONG! Using db instead of tx
-// This executes OUTSIDE the transaction!
-
-tx.Exec("UPDATE ...")  // CORRECT! Using tx
-```
-
-### Pitfall 2: Not Using defer
-
-```go
-tx, _ := db.Begin()
-// WRONG! No defer tx.Rollback()
-
-if err := doSomething(tx); err != nil {
-    return err  // Transaction never rolled back - connection leak!
-}
-
-// CORRECT:
-tx, _ := db.Begin()
-defer tx.Rollback()
-```
-
-### Pitfall 3: Ignoring Errors
-
-```go
-// WRONG
-tx, _ := db.Begin()  // Ignoring error
-
-// CORRECT
-tx, err := db.Begin()
-if err != nil {
-    return err
-}
-```
-
-## Console Output
-
-Watch the server logs to see transaction behavior:
-
-**With Transaction:**
-```
-Operation 1: Game stars updated
-Simulated failure! Network error!
-Transaction rolled back (via defer)
-```
-
-**Without Transaction:**
-```
-Operation 1: Game stars updated (SAVED TO DB)
-Simulated failure! But operation 1 already committed!
-NO ROLLBACK - data is inconsistent!
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+#does not crash as game_statistics here not used...
+migrate -path migrations -database "postgres://postgres:password@localhost:5432/postgres?sslmode=disable" down 1
 ```
 
 ## Architecture Comparison

@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 )
 
@@ -58,14 +61,9 @@ func main() {
 		log.Fatal("Failed to connect to database after retries:", err)
 	}
 
-	// Initialize database schema
-	if err := initDB(); err != nil {
-		log.Fatal("Failed to initialize database:", err)
-	}
-
-	// Load sample data
-	if err := loadSampleData(); err != nil {
-		log.Fatal("Failed to load sample data:", err)
+	// Run migrations
+	if err := runMigrations(db); err != nil {
+		log.Fatal("Failed to run migrations:", err)
 	}
 
 	mux := http.NewServeMux()
@@ -86,71 +84,24 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
 
-func initDB() error {
-	// Create games table
-	gamesTable := `
-	CREATE TABLE IF NOT EXISTS games (
-		id SERIAL PRIMARY KEY,
-		title VARCHAR(255) NOT NULL,
-		description TEXT NOT NULL,
-		stars INTEGER DEFAULT 0
-	);`
-
-	// Create game_statistics table
-	statsTable := `
-	CREATE TABLE IF NOT EXISTS game_statistics (
-		id SERIAL PRIMARY KEY,
-		game_id INTEGER UNIQUE NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-		total_stars INTEGER DEFAULT 0,
-		last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	);`
-
-	if _, err := db.Exec(gamesTable); err != nil {
-		return err
+func runMigrations(db *sql.DB) error {
+	driver, err := postgres.WithInstance(db, &postgres.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to create migrate driver: %w", err)
 	}
 
-	if _, err := db.Exec(statsTable); err != nil {
-		return err
+	m, err := migrate.NewWithDatabaseInstance(
+		"file://migrations",
+		"postgres", driver)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance: %w", err)
 	}
 
-	log.Println("Database schema initialized")
-	return nil
-}
-
-func loadSampleData() error {
-	// Check if data already exists
-	var count int
-	if err := db.QueryRow("SELECT COUNT(*) FROM games").Scan(&count); err != nil {
-		return err
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 
-	if count > 0 {
-		log.Println("Sample data already exists")
-		return nil
-	}
-
-	// Insert sample games
-	games := []struct {
-		title       string
-		description string
-		stars       int
-	}{
-		{"The Legend of Zelda", "Epic adventure game", 5},
-		{"Super Mario Bros", "Classic platformer", 3},
-		{"Metroid", "Space exploration", 4},
-	}
-
-	for _, game := range games {
-		_, err := db.Exec(
-			"INSERT INTO games (title, description, stars) VALUES ($1, $2, $3)",
-			game.title, game.description, game.stars,
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	log.Println("Sample games loaded")
+	log.Println("Migrations completed successfully")
 	return nil
 }
 
@@ -289,7 +240,7 @@ func handleWithoutTransaction(w http.ResponseWriter, r *http.Request) {
 	var starsBefore int
 	db.QueryRow("SELECT stars FROM games WHERE id = $1", gameID).Scan(&starsBefore)
 
-	// Call non-transaction function
+	// Call NON-transaction function
 	err = addStarWithoutTransaction(gameID)
 
 	var starsAfter int
@@ -302,7 +253,7 @@ func handleWithoutTransaction(w http.ResponseWriter, r *http.Request) {
 			"stars_before": starsBefore,
 			"stars_after":  starsAfter,
 			"rolled_back":  false,
-			"message":      "Error occurred but no transaction to rollback",
+			"message":      "NO ROLLBACK! Star was added to game 1 even though error occurred. No way to undo!",
 		})
 	} else {
 		json.NewEncoder(w).Encode(map[string]interface{}{

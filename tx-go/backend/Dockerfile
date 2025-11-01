@@ -8,5 +8,6 @@ RUN go build -o server main.go
 FROM alpine:latest
 WORKDIR /app
 COPY --from=builder /app/server .
+COPY migrations /app/migrations
 EXPOSE 8080
 CMD ["./server"]

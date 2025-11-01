@@ -55,9 +55,9 @@ The application will be available at `http://localhost:8080`
 public void addStarWithStatistics(Long gameId) {
     game.addStar();
     gameRepository.save(game);        // Operation 1: SUCCEEDS
-    
+
     // Exception thrown here - network error, database crash, etc.
-    
+
     stats.incrementTotalStars();
     statsRepository.save(stats);      // Operation 2: NEVER EXECUTES
 }
@@ -72,9 +72,9 @@ public void addStarWithStatistics(Long gameId) {
 public void addStarWithStatistics(Long gameId) {
     game.addStar();
     gameRepository.save(game);        // Operation 1: SUCCEEDS
-    
+
     // Exception thrown here - network error, database crash, etc.
-    
+
     stats.incrementTotalStars();
     statsRepository.save(stats);      // Operation 2: NEVER EXECUTES
 }
@@ -235,6 +235,8 @@ Run the demo endpoints in order:
 ```
 docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM games;"
 docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM game_statistics;"
+
+docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM flyway_schema_history;"
 ```
 
 The console logs will show:

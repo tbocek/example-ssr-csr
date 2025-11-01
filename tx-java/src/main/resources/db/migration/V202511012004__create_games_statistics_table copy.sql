@@ -1,0 +1,7 @@
+CREATE TABLE game_statistics (
+    id BIGSERIAL PRIMARY KEY,
+    game_id BIGINT UNIQUE NOT NULL,
+    total_stars INTEGER DEFAULT 0,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_game FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+);
