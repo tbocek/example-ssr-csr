@@ -1,0 +1,15 @@
+FROM golang:1.25-alpine
+RUN apk add --no-cache podman
+RUN adduser -D -u 1000 testuser
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY *.go .
+COPY migrations /app/migrations
+RUN echo 'ryuk.disabled=true' > ~/.testcontainers.properties
+#RUN go test -v -short ##TODO: make this work
+CMD ["go", "test", "-v", "-run", "TestIntegration"]
+
+#build: podman build -f Dockerfile.test -t backend-test .
+#podman: podman system service --time=0 unix:///tmp/podman.sock & PODMAN_PID=$!
+#run: podman run --rm --network host -v /tmp/podman.sock:/var/run/docker.sock backend-test && kill "$PODMAN_PID"
