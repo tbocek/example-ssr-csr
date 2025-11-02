@@ -7,7 +7,7 @@ RUN go mod download
 COPY *.go .
 COPY migrations /app/migrations
 RUN echo 'ryuk.disabled=true' > ~/.testcontainers.properties
-#RUN go test -v -short ##TODO: make this work
+RUN go test -v -short
 CMD ["go", "test", "-v", "-run", "TestIntegration"]
 
 #build: podman build -f Dockerfile.test -t backend-test .
