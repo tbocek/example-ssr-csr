@@ -1,0 +1,12 @@
+FROM docker.io/gradle:jdk25-alpine
+RUN apk add --no-cache podman
+WORKDIR /app
+COPY build.gradle ./
+RUN gradle dependencies --no-daemon
+COPY src ./src
+ENV TESTCONTAINERS_RYUK_DISABLED=true
+CMD ["gradle", "test", "--no-daemon", "--info"]
+
+#build: podman build -f Dockerfile.test -t backend-test .
+#podman: podman system service --time=0 unix:///tmp/podman.sock & PODMAN_PID=$!
+#run: podman run --rm --network host -v /tmp/podman.sock:/var/run/docker.sock backend-test && kill "$PODMAN_PID"
