@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Management System</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><circle cx='5' cy='5' r='4' fill='%23007bff'/></svg>">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        h1 { color: #333; }
+        h2 { color: #555; margin-top: 30px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        form {
+            background: #f4f4f4;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        input[type="text"], textarea {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        .btn {
+            padding: 10px 20px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            background-color: #4CAF50;
+            color: white;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .star-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+        }
+        .star-btn:hover {
+            transform: scale(1.2);
+        }
+        .star-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .loading {
+            text-align: center;
+            color: #666;
+        }
+        .notification {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 4px solid #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>Game Management System</h1>
+        
+        <h2>Add New Game</h2>
+        <form @submit.prevent="addGame">
+            <input type="text" v-model="newGame.title" placeholder="Game Title" required />
+            <textarea v-model="newGame.description" placeholder="Description" required></textarea>
+            <button type="submit" class="btn">Add Game</button>
+        </form>
+        
+        <h2>Game List</h2>
+        <div v-if="loading" class="loading">Loading games...</div>
+        <div v-else-if="error" style="color: red;">Error: {{ error }}</div>
+        <table v-else-if="games.length > 0">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Description</th>
+                    <th>Stars</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="game in games" :key="game.id">
+                    <td>{{ game.id }}</td>
+                    <td>{{ game.title }}</td>
+                    <td>{{ game.description }}</td>
+                    <td>
+                        <div class="star-count">
+                            <button class="star-btn" @click="addStar(game.id)">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="#FFD700" stroke="#FFA500" stroke-width="1">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                </svg>
+                            </button>
+                            <span>{{ game.stars }}</span>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+        <p v-else>No games found. Add one above!</p>
+
+        <div v-if="notification" class="notification">
+            {{ notification }}
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+        const API_URL = '/api';
+
+        createApp({
+            data() {
+                return {
+                    games: [],
+                    newGame: {
+                        title: '',
+                        description: ''
+                    },
+                    loading: true,
+                    error: null,
+                    notification: null
+                }
+            },
+            mounted() {
+                this.fetchGames();
+            },
+            methods: {
+                async fetchGames() {
+                    try {
+                        const response = await fetch(`${API_URL}/games`);
+                        if (!response.ok) throw new Error('Failed to fetch games');
+                        this.games = await response.json();
+                        this.loading = false;
+                    } catch (err) {
+                        this.error = err.message;
+                        this.loading = false;
+                    }
+                },
+                async addGame() {
+                    try {
+                        const response = await fetch(`${API_URL}/games`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.newGame)
+                        });
+                        
+                        if (!response.ok) throw new Error('Failed to add game');
+                        
+                        this.newGame.title = '';
+                        this.newGame.description = '';
+                        await this.fetchGames();
+                        
+                        this.showNotification('Game added successfully!');
+                    } catch (err) {
+                        this.showNotification('Error adding game: ' + err.message);
+                    }
+                },
+                async addStar(gameId) {
+                    try {
+                        const response = await fetch(`${API_URL}/games/${gameId}/star`, {
+                            method: 'POST'
+                        });
+                        
+                        if (!response.ok) throw new Error('Failed to add star');
+                        
+                        const game = this.games.find(g => g.id === gameId);
+                        if (game) {
+                            game.stars++;
+                        }
+                        
+                        this.showNotification('Star added successfully!');
+                    } catch (err) {
+                        this.showNotification('Error adding star: ' + err.message);
+                    }
+                },
+                showNotification(message) {
+                    this.notification = message;
+                    setTimeout(() => {
+                        this.notification = null;
+                    }, 3000);
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+FROM postgres:18-alpine
+
+# Install build dependencies including proper PostgreSQL dev package
+RUN apk add --no-cache \
+    git \
+    build-base \
+    postgresql-dev \
+    clang \
+    llvm \
+    make
+
+# Clone and build PGMQ extension
+RUN git clone https://github.com/tembo-io/pgmq.git /tmp/pgmq
+WORKDIR /tmp/pgmq/pgmq-extension
+
+# Build and install PGMQ
+RUN make clean && make && make install
+
+# Fix Alpine extension path issue - copy from /usr/share to /usr/local/share
+RUN if [ -d "/usr/share/postgresql/extension" ]; then \
+        cp -r /usr/share/postgresql/extension/* /usr/local/share/postgresql/extension/ 2>/dev/null || true; \
+    fi && \
+    if [ -d "/usr/lib/postgresql" ]; then \
+        cp -r /usr/lib/postgresql/* /usr/local/lib/postgresql/ 2>/dev/null || true; \
+    fi
+
+# Verify installation
+RUN ls -la /usr/local/share/postgresql/extension/ && \
+    ls -la /usr/local/lib/postgresql/
+
+# Clean up build dependencies
+RUN apk del git build-base clang llvm make && \
+    rm -rf /tmp/pgmq
+
+WORKDIR /
+CMD ["postgres"]
