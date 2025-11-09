@@ -30,7 +30,7 @@ services:
       # Required for KRaft
       CLUSTER_ID: '4L6g3nShT-eMCtK--X86sw'
     volumes:
-      - kafka_data:/var/lib/kafka/data
+      - ./.kafka_data:/var/lib/kafka/data
 
   backend:
     build: ./backend
