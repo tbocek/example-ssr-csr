@@ -1,0 +1,11 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./frontend:/usr/share/caddy/
+      - ./Caddyfile:/etc/caddy/Caddyfile
+
+  backend:
+    build: ./backend
