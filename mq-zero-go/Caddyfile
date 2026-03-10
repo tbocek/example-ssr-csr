@@ -1,0 +1,11 @@
+:80 {
+    # Reverse proxy API requests to backend
+    handle /api/* {
+        reverse_proxy backend:8080
+    }
+    # Serve static files for all other requests
+    handle {
+        root * /usr/share/caddy
+        file_server
+    }
+}
