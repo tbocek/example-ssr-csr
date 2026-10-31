@@ -4,8 +4,8 @@ A minimal Spring Boot application demonstrating server-side rendering with Thyme
 
 ## Stack
 
-- Java 25
-- Spring Boot 3.5.6
+- Java 27
+- Spring Boot 4.1.2
 - Thymeleaf (server-side templating)
 - Spring Data JPA
 - PostgreSQL 18
@@ -31,7 +31,7 @@ src/main/resources/
 ### Prerequisites
 
 - Docker and Docker Compose
-- Java 25 (for local development without Docker)
+- Java 27 and Gradle 9.8 or later (for local development without Docker; Gradle 9.8 is the first release that runs on Java 27)
 
 ### With Docker Compose
 

@@ -5,7 +5,7 @@ This repository contains three implementations of the same Game Management appli
 ## Projects
 
 ### 1. [ssr-java](./ssr-java) - Server-Side Rendering
-**Stack:** Java 25, Spring Boot, Thymeleaf, PostgreSQL
+**Stack:** Java 27, Spring Boot, Thymeleaf, PostgreSQL
 
 Classic server-side rendering where HTML is generated on the server for each request.
 
