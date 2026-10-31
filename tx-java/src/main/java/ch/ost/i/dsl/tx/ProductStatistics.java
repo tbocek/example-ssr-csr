@@ -4,39 +4,39 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "game_statistics")
-public class GameStatistics {
+@Table(name = "product_statistics")
+public class ProductStatistics {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
     @Column(unique = true)
-    private Long gameId;
+    private Long productId;
     
-    private Integer totalStars = 0;
+    private Integer totalSold = 0;
     private LocalDateTime lastUpdated;
     
-    public GameStatistics() {}
+    public ProductStatistics() {}
     
-    public GameStatistics(Long gameId) {
-        this.gameId = gameId;
-        this.totalStars = 0;
+    public ProductStatistics(Long productId) {
+        this.productId = productId;
+        this.totalSold = 0;
         this.lastUpdated = LocalDateTime.now();
     }
     
-    public void incrementTotalStars() {
-        this.totalStars++;
+    public void incrementTotalSold() {
+        this.totalSold++;
     }
     
     // Getters and setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     
-    public Long getGameId() { return gameId; }
-    public void setGameId(Long gameId) { this.gameId = gameId; }
+    public Long getProductId() { return productId; }
+    public void setProductId(Long productId) { this.productId = productId; }
     
-    public Integer getTotalStars() { return totalStars; }
-    public void setTotalStars(Integer totalStars) { this.totalStars = totalStars; }
+    public Integer getTotalSold() { return totalSold; }
+    public void setTotalSold(Integer totalSold) { this.totalSold = totalSold; }
     
     public LocalDateTime getLastUpdated() { return lastUpdated; }
     public void setLastUpdated(LocalDateTime lastUpdated) { this.lastUpdated = lastUpdated; }

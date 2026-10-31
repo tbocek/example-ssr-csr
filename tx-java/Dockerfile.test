@@ -1,4 +1,4 @@
-FROM docker.io/gradle:jdk25-alpine
+FROM docker.io/gradle:9.8.2-jdk27-alpine
 RUN apk add --no-cache podman
 WORKDIR /app
 COPY build.gradle ./

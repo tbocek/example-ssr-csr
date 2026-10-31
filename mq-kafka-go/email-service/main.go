@@ -20,7 +20,7 @@ func main() {
 	}
 
 	// Topic to consume from
-	topic := "game-events"
+	topic := "product-events"
 
 	// Create Kafka reader (consumer)
 	reader := kafka.NewReader(kafka.ReaderConfig{
@@ -60,7 +60,7 @@ func main() {
 		default:
 			// Set read deadline to allow checking for shutdown
 			ctxWithTimeout, cancelTimeout := context.WithTimeout(ctx, 5*time.Second)
-			
+
 			message, err := reader.ReadMessage(ctxWithTimeout)
 			cancelTimeout()
 
@@ -74,11 +74,11 @@ func main() {
 			}
 
 			log.Printf("📧 Processing email notification: %s", string(message.Value))
-			
+
 			// Simulate email processing
 			time.Sleep(100 * time.Millisecond)
-			
-			log.Printf("✅ Email sent successfully (partition: %d, offset: %d)", 
+
+			log.Printf("✅ Email sent successfully (partition: %d, offset: %d)",
 				message.Partition, message.Offset)
 		}
 	}

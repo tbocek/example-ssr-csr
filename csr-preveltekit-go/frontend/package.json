@@ -1,5 +1,5 @@
 {
-  "name": "preveltekit-games-example",
+  "name": "preveltekit-shop-example",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -8,9 +8,9 @@
     "stage": "preveltekit stage"
   },
   "devDependencies": {
-    "preveltekit": "^1.2.18"
+    "preveltekit": "^1.2.25"
   },
   "dependencies": {
-    "svelte": "^5.41.3"
+    "svelte": "^5.57.3"
   }
 }

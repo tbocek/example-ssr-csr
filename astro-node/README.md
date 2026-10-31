@@ -1,4 +1,4 @@
-# Game Management - Astro Islands
+# Shop - Astro Islands
 
 Conversion from HTMX to Astro demonstrating Islands Architecture.
 
@@ -13,8 +13,8 @@ Conversion from HTMX to Astro demonstrating Islands Architecture.
 **Astro (this version)**
 - SSR + Hydration: Server renders, client hydrates islands
 - ~10-15KB JS (only interactive components)
-- Form submission + star clicks use fetch API
-- Client-side updates (no full reload for stars)
+- Form submission + buy clicks use fetch API
+- Client-side updates (no full reload for stock)
 
 ## Architecture
 
@@ -25,7 +25,7 @@ Browser → Astro SSR → API Routes → PostgreSQL
 ```
 
 **What ships JS:**
-- GameList component (`<script>` tag)
+- ProductList component (`<script>` tag)
 - Nothing else
 
 **What's static:**
@@ -42,7 +42,7 @@ docker compose up --build
 
 ## Islands Architecture
 
-Only `GameList.astro` has `<script>` tag, so only that component's JS ships to browser. Rest is static HTML.
+Only `ProductList.astro` has `<script>` tag, so only that component's JS ships to browser. Rest is static HTML.
 
 **Bundle comparison:**
 - HTMX version: ~3KB (htmx.org)
@@ -57,7 +57,7 @@ Only `GameList.astro` has `<script>` tag, so only that component's JS ships to b
 - No build step
 
 **Astro wins:**
-- Better UX (no full reload on star click)
+- Better UX (no full reload on buy click)
 - Can mix frameworks (React islands, Vue islands)
 - Better for complex client-side logic
 - Static build option for blogs/docs

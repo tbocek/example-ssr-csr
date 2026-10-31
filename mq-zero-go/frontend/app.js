@@ -5,67 +5,71 @@ const API_URL = '/api';
 createApp({
     data() {
         return {
-            games: [],
-            newGame: {
-                title: '',
-                description: ''
+            products: [],
+            newProduct: {
+                name: '',
+                description: '',
+                price: null,
+                stock: null
             },
             loading: true,
             error: null
         }
     },
     mounted() {
-        this.fetchGames();
+        this.fetchProducts();
     },
     methods: {
-        async fetchGames() {
+        async fetchProducts() {
             try {
-                const response = await fetch(`${API_URL}/games`);
-                if (!response.ok) throw new Error('Failed to fetch games');
-                this.games = await response.json();
+                const response = await fetch(`${API_URL}/products`);
+                if (!response.ok) throw new Error('Failed to fetch products');
+                this.products = await response.json();
                 this.loading = false;
             } catch (err) {
                 this.error = err.message;
                 this.loading = false;
             }
         },
-        async addGame() {
+        async addProduct() {
             try {
-                const response = await fetch(`${API_URL}/games`, {
+                const response = await fetch(`${API_URL}/products`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(this.newGame)
+                    body: JSON.stringify(this.newProduct)
                 });
                 
-                if (!response.ok) throw new Error('Failed to add game');
+                if (!response.ok) throw new Error('Failed to add product');
                 
                 // Reset form
-                this.newGame.title = '';
-                this.newGame.description = '';
+                this.newProduct.name = '';
+                this.newProduct.description = '';
+                this.newProduct.price = null;
+                this.newProduct.stock = null;
                 
                 // Refresh list
-                await this.fetchGames();
+                await this.fetchProducts();
             } catch (err) {
-                alert('Error adding game: ' + err.message);
+                alert('Error adding product: ' + err.message);
             }
         },
-        async addStar(gameId) {
+        async buy(productId) {
             try {
-                const response = await fetch(`${API_URL}/games/${gameId}/star`, {
+                const response = await fetch(`${API_URL}/products/${productId}/buy`, {
                     method: 'POST'
                 });
                 
-                if (!response.ok) throw new Error('Failed to add star');
+                if (!response.ok) throw new Error('Failed to buy product');
                 
-                // Update the game's star count locally
-                const game = this.games.find(g => g.id === gameId);
-                if (game) {
-                    game.stars++;
+                // Update the product's stock locally
+                const product = this.products.find(g => g.id === productId);
+                if (product) {
+                    product.stock--;
                 }
             } catch (err) {
-                alert('Error adding star: ' + err.message);
+                alert('Error buying product: ' + err.message);
             }
         }
     }

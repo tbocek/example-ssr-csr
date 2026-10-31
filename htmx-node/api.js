@@ -32,11 +32,12 @@ async function initDB() {
   }
 
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS games (
+    CREATE TABLE IF NOT EXISTS products (
       id SERIAL PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
+      name VARCHAR(255) NOT NULL,
       description TEXT NOT NULL,
-      stars INTEGER DEFAULT 0
+      price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+      stock INTEGER NOT NULL DEFAULT 0
     )
   `);
 }
@@ -53,51 +54,50 @@ function escapeHtml(text) {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-// Helper function to render game row
-function renderGameRow(game) {
+// Helper function to render product row
+function renderProductRow(product) {
   return `
-    <tr id="game-${game.id}">
-      <td>${game.id}</td>
-      <td>${escapeHtml(game.title)}</td>
-      <td>${escapeHtml(game.description)}</td>
+    <tr id="product-${product.id}">
+      <td>${product.id}</td>
+      <td>${escapeHtml(product.name)}</td>
+      <td>${escapeHtml(product.description)}</td>
+      <td>CHF ${Number(product.price).toFixed(2)}</td>
+      <td>${product.stock}</td>
       <td>
-        <div class="star-count">
-          <button class="star-btn" 
-                  hx-post="/api/games/${game.id}/star" 
-                  hx-target="#game-${game.id}"
-                  hx-swap="outerHTML">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="#FFD700" stroke="#FFA500" stroke-width="1">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-            </svg>
-          </button>
-          <span>${game.stars}</span>
-        </div>
+        <button ${product.stock === 0 ? 'disabled' : ''}
+                hx-post="/api/products/${product.id}/buy"
+                hx-target="#product-${product.id}"
+                hx-swap="outerHTML">${product.stock === 0 ? 'Sold out' : 'Buy'}</button>
       </td>
     </tr>`;
 }
 
-// GET all games
-app.get('/api/games', async (req, res) => {
+// GET all products
+app.get('/api/products', async (req, res) => {
   try {
-    const result = await pool.query('SELECT id, title, description, stars FROM games ORDER BY id');
+    const result = await pool.query('SELECT id, name, description, price, stock FROM products ORDER BY id');
     
     if (result.rows.length === 0) {
-      return res.send('<p>No games found. Add one above!</p>');
+      return res.send('<p>No products found. Add one above!</p>');
     }
 
     let html = `<table>
       <thead>
         <tr>
           <th>ID</th>
-          <th>Title</th>
+          <th>Name</th>
           <th>Description</th>
-          <th>Stars</th>
+          <th>Price</th>
+          <th>Price</th>
+          <th>Stock</th>
+          <th></th>
+          <th></th>
         </tr>
       </thead>
       <tbody>`;
 
-    result.rows.forEach(game => {
-      html += renderGameRow(game);
+    result.rows.forEach(product => {
+      html += renderProductRow(product);
     });
 
     html += '</tbody></table>';
@@ -108,36 +108,40 @@ app.get('/api/games', async (req, res) => {
   }
 });
 
-// POST new game
-app.post('/api/games', async (req, res) => {
+// POST new product
+app.post('/api/products', async (req, res) => {
   try {
-    const { title, description } = req.body;
+    const { name, description, price, stock } = req.body;
 
-    if (!title || !description) {
-      return res.status(400).send('Title and description required');
+    if (!name || !description || !price || !stock) {
+      return res.status(400).send('Name, description, price and stock required');
     }
 
     await pool.query(
-      'INSERT INTO games (title, description, stars) VALUES ($1, $2, 0)',
-      [title, description]
+      'INSERT INTO products (name, description, price, stock) VALUES ($1, $2, $3, $4)',
+      [name, description, price, stock]
     );
 
-    // Return updated game list
-    const result = await pool.query('SELECT id, title, description, stars FROM games ORDER BY id');
+    // Return updated product list
+    const result = await pool.query('SELECT id, name, description, price, stock FROM products ORDER BY id');
     
     let html = `<table>
       <thead>
         <tr>
           <th>ID</th>
-          <th>Title</th>
+          <th>Name</th>
           <th>Description</th>
-          <th>Stars</th>
+          <th>Price</th>
+          <th>Price</th>
+          <th>Stock</th>
+          <th></th>
+          <th></th>
         </tr>
       </thead>
       <tbody>`;
 
-    result.rows.forEach(game => {
-      html += renderGameRow(game);
+    result.rows.forEach(product => {
+      html += renderProductRow(product);
     });
 
     html += '</tbody></table>';
@@ -148,25 +152,25 @@ app.post('/api/games', async (req, res) => {
   }
 });
 
-// POST star a game
-app.post('/api/games/:id/star', async (req, res) => {
+// POST buy a product
+app.post('/api/products/:id/buy', async (req, res) => {
   try {
-    const gameId = parseInt(req.params.id);
+    const productId = parseInt(req.params.id);
 
-    if (isNaN(gameId)) {
-      return res.status(400).send('Invalid game ID');
+    if (isNaN(productId)) {
+      return res.status(400).send('Invalid product ID');
     }
 
     const result = await pool.query(
-      'UPDATE games SET stars = stars + 1 WHERE id = $1 RETURNING id, title, description, stars',
-      [gameId]
+      'UPDATE products SET stock = stock - 1 WHERE id = $1 AND stock > 0 RETURNING id, name, description, price, stock',
+      [productId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).send('Game not found');
+      return res.status(409).send('Product not found or sold out');
     }
 
-    res.send(renderGameRow(result.rows[0]));
+    res.send(renderProductRow(result.rows[0]));
   } catch (err) {
     console.error(err);
     res.status(500).send('Database error');

@@ -1,6 +1,6 @@
-# PrevelteKit Game Management - Hybrid Rendering Demo
+# PrevelteKit Shop - Hybrid Rendering Demo
 
-A game management application demonstrating **hybrid rendering** (build-time pre-rendering + hydration) using PrevelteKit, Svelte 5, Go, and PostgreSQL.
+A product management application demonstrating **hybrid rendering** (build-time pre-rendering + hydration) using PrevelteKit, Svelte 5, Go, and PostgreSQL.
 
 ## What is PrevelteKit?
 
@@ -17,7 +17,7 @@ csr-preveltekit-go/
 ├── src/
 │   └── Index.svelte        # Main Svelte 5 component with reactive state
 ├── backend/
-│   ├── main.go             # Go REST API (game CRUD + stars)
+│   ├── main.go             # Go REST API (product CRUD + stock)
 │   ├── go.mod              # Go dependencies
 │   ├── go.sum              # Dependency checksums
 │   └── Dockerfile          # Multi-stage build for Go API
@@ -38,13 +38,12 @@ Access the application at: **http://localhost**
 
 ## Features
 
-- ✅ Add games with title and description
-- ✅ List all games in a table
-- ✅ Click star (⭐) button to increment count
+- ✅ Add products with name and description
+- ✅ List all products in a table
+- ✅ Click Buy button to decrement stock
 - ✅ **Build-time pre-rendering** - content visible immediately
 - ✅ **Hydration** - JavaScript adds interactivity without page reloads
 - ✅ **Persistent storage** in PostgreSQL
-- ✅ **Sample data** (Zelda, Mario) loaded on startup
 
 ## How PrevelteKit Works
 
@@ -60,7 +59,7 @@ Access the application at: **http://localhost**
 2. Caddy returns **pre-rendered HTML** with visible layout/content
 3. Browser displays content immediately (**fast FCP**)
 4. JavaScript downloads and **hydrates** the page (attaches event handlers)
-5. JavaScript makes API call to `/api/games` (proxied to Go backend)
+5. JavaScript makes API call to `/api/products` (proxied to Go backend)
 6. Go backend queries PostgreSQL, returns JSON
 7. Svelte updates DOM with fresh data
 8. User interactions update DOM **without page reloads**
@@ -72,7 +71,7 @@ The `window?.__isBuildTime` check prevents API calls during pre-rendering:
 ```javascript
 // Fetch on mount (only if not pre-rendering)
 if (!window?.__isBuildTime) {
-    fetchGames();
+    fetchProducts();
 }
 ```
 
@@ -98,18 +97,19 @@ if (!window?.__isBuildTime) {
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/games` | List all games |
-| POST | `/api/games` | Create new game |
-| POST | `/api/games/{id}/star` | Increment star count |
+| GET | `/api/products` | List all products |
+| POST | `/api/products` | Create new product |
+| POST | `/api/products/{id}/buy` | Decrement stock |
 
 ### Database Schema
 
 ```sql
-CREATE TABLE games (
+CREATE TABLE products (
     id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
     description TEXT NOT NULL,
-    stars INTEGER DEFAULT 0
+    price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    stock INTEGER NOT NULL DEFAULT 0
 );
 ```
 
@@ -120,7 +120,7 @@ CREATE TABLE games (
 | **Frontend Framework** | Svelte 5 | Reactive UI components |
 | **Build Tool** | PrevelteKit | Build-time pre-rendering |
 | **Web Server** | Caddy 2 | Serves static files + reverse proxy |
-| **Backend** | Go 1.21 | REST API server |
+| **Backend** | Go 1.27 | REST API server |
 | **Database** | PostgreSQL 18 | Persistent storage |
 | **Containerization** | Docker + Compose | Multi-service orchestration |
 

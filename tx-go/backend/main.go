@@ -17,17 +17,18 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type Game struct {
-	ID          int    `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Stars       int    `json:"stars"`
+type Product struct {
+	ID          int     `json:"id"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Price       float64 `json:"price"`
+	Stock       int     `json:"stock"`
 }
 
-type GameStatistics struct {
+type ProductStatistics struct {
 	ID          int       `json:"id"`
-	GameID      int       `json:"game_id"`
-	TotalStars  int       `json:"total_stars"`
+	ProductID   int       `json:"product_id"`
+	TotalSold   int       `json:"total_sold"`
 	LastUpdated time.Time `json:"last_updated"`
 }
 
@@ -39,7 +40,7 @@ func main() {
 	// Get database URL from environment
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://postgres:postgres@db:5432/gamedb?sslmode=disable"
+		dbURL = "postgres://postgres:postgres@db:5432/shopdb?sslmode=disable"
 	}
 
 	db, err = sql.Open("postgres", dbURL)
@@ -67,18 +68,18 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	
+
 	// Original endpoints
-	mux.HandleFunc("GET /api/games", handleGames)
-	mux.HandleFunc("POST /api/games", handleGames)
-	mux.HandleFunc("POST /api/games/{id}/star", handleGameActions)
-	
+	mux.HandleFunc("GET /api/products", handleProducts)
+	mux.HandleFunc("POST /api/products", handleProducts)
+	mux.HandleFunc("POST /api/products/{id}/buy", handleProductActions)
+
 	// Transaction demo endpoints
 	mux.HandleFunc("POST /api/demo/with-transaction/{id}", handleWithTransaction)
 	mux.HandleFunc("POST /api/demo/without-transaction/{id}", handleWithoutTransaction)
-	mux.HandleFunc("POST /api/demo/transfer", handleTransferStars)
-	mux.HandleFunc("POST /api/demo/transfer-no-tx", handleTransferStarsNoTx)
-	mux.HandleFunc("GET /api/demo/game/{id}", handleGetGameDetails)
+	mux.HandleFunc("POST /api/demo/transfer", handleTransferStock)
+	mux.HandleFunc("POST /api/demo/transfer-no-tx", handleTransferStockNoTx)
+	mux.HandleFunc("GET /api/demo/product/{id}", handleGetProductDetails)
 
 	log.Println("Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
@@ -105,76 +106,74 @@ func runMigrations(db *sql.DB) error {
 	return nil
 }
 
-func handleGames(w http.ResponseWriter, r *http.Request) {
+func handleProducts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	switch r.Method {
 	case "GET":
-		rows, err := db.Query("SELECT id, title, description, stars FROM games ORDER BY id")
+		rows, err := db.Query("SELECT id, name, description, price, stock FROM products ORDER BY id")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer rows.Close()
 
-		games := []Game{}
+		products := []Product{}
 		for rows.Next() {
-			var game Game
-			if err := rows.Scan(&game.ID, &game.Title, &game.Description, &game.Stars); err != nil {
+			var product Product
+			if err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Stock); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			games = append(games, game)
+			products = append(products, product)
 		}
 
-		json.NewEncoder(w).Encode(games)
+		json.NewEncoder(w).Encode(products)
 
 	case "POST":
-		var newGame Game
-		if err := json.NewDecoder(r.Body).Decode(&newGame); err != nil {
+		var newProduct Product
+		if err := json.NewDecoder(r.Body).Decode(&newProduct); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		err := db.QueryRow(
-			"INSERT INTO games (title, description, stars) VALUES ($1, $2, 0) RETURNING id",
-			newGame.Title, newGame.Description,
-		).Scan(&newGame.ID)
+			"INSERT INTO products (name, description, price, stock) VALUES ($1, $2, $3, $4) RETURNING id",
+			newProduct.Name, newProduct.Description, newProduct.Price, newProduct.Stock,
+		).Scan(&newProduct.ID)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		newGame.Stars = 0
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(newGame)
+		json.NewEncoder(w).Encode(newProduct)
 	}
 }
 
-func handleGameActions(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/games/")
+func handleProductActions(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/products/")
 	parts := strings.Split(path, "/")
-	if len(parts) < 2 || parts[1] != "star" {
+	if len(parts) < 2 || parts[1] != "buy" {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
 
-	gameID, err := strconv.Atoi(parts[0])
+	productID, err := strconv.Atoi(parts[0])
 	if err != nil {
-		http.Error(w, "Invalid game ID", http.StatusBadRequest)
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
 		return
 	}
 
 	if r.Method == "POST" {
-		var game Game
+		var product Product
 		err := db.QueryRow(
-			"UPDATE games SET stars = stars + 1 WHERE id = $1 RETURNING id, title, description, stars",
-			gameID,
-		).Scan(&game.ID, &game.Title, &game.Description, &game.Stars)
+			"UPDATE products SET stock = stock - 1 WHERE id = $1 AND stock > 0 RETURNING id, name, description, price, stock",
+			productID,
+		).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Stock)
 
 		if err == sql.ErrNoRows {
-			http.Error(w, "Game not found", http.StatusNotFound)
+			http.Error(w, "Product not found or sold out", http.StatusConflict)
 			return
 		}
 		if err != nil {
@@ -183,7 +182,7 @@ func handleGameActions(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(game)
+		json.NewEncoder(w).Encode(product)
 	}
 }
 
@@ -191,37 +190,37 @@ func handleGameActions(w http.ResponseWriter, r *http.Request) {
 
 // WITH Transaction - demonstrates rollback on failure
 func handleWithTransaction(w http.ResponseWriter, r *http.Request) {
-	gameIDStr := strings.TrimPrefix(r.URL.Path, "/api/demo/with-transaction/")
-	gameID, err := strconv.Atoi(gameIDStr)
+	productIDStr := strings.TrimPrefix(r.URL.Path, "/api/demo/with-transaction/")
+	productID, err := strconv.Atoi(productIDStr)
 	if err != nil {
-		http.Error(w, "Invalid game ID", http.StatusBadRequest)
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
 		return
 	}
 
-	// Get stars before
-	var starsBefore int
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", gameID).Scan(&starsBefore)
+	// Get stock before
+	var stockBefore int
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", productID).Scan(&stockBefore)
 
 	// Call transaction function
-	err = addStarWithTransaction(gameID)
+	err = moveStockWithTransaction(productID)
 
-	var starsAfter int
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", gameID).Scan(&starsAfter)
+	var stockAfter int
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", productID).Scan(&stockAfter)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"error":        err.Error(),
-			"stars_before": starsBefore,
-			"stars_after":  starsAfter,
-			"rolled_back":  starsBefore == starsAfter,
-			"message":      "Transaction rolled back! Stars unchanged.",
+			"stock_before": stockBefore,
+			"stock_after":  stockAfter,
+			"rolled_back":  stockBefore == stockAfter,
+			"message":      "Transaction rolled back! Stock unchanged.",
 		})
 	} else {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success":      true,
-			"stars_before": starsBefore,
-			"stars_after":  starsAfter,
+			"stock_before": stockBefore,
+			"stock_after":  stockAfter,
 			"message":      "Transaction committed successfully!",
 		})
 	}
@@ -229,48 +228,48 @@ func handleWithTransaction(w http.ResponseWriter, r *http.Request) {
 
 // WITHOUT Transaction - demonstrates data corruption
 func handleWithoutTransaction(w http.ResponseWriter, r *http.Request) {
-	gameIDStr := strings.TrimPrefix(r.URL.Path, "/api/demo/without-transaction/")
-	gameID, err := strconv.Atoi(gameIDStr)
+	productIDStr := strings.TrimPrefix(r.URL.Path, "/api/demo/without-transaction/")
+	productID, err := strconv.Atoi(productIDStr)
 	if err != nil {
-		http.Error(w, "Invalid game ID", http.StatusBadRequest)
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
 		return
 	}
 
-	// Get stars before
-	var starsBefore int
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", gameID).Scan(&starsBefore)
+	// Get stock before
+	var stockBefore int
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", productID).Scan(&stockBefore)
 
 	// Call NON-transaction function
-	err = addStarWithoutTransaction(gameID)
+	err = moveStockWithoutTransaction(productID)
 
-	var starsAfter int
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", gameID).Scan(&starsAfter)
+	var stockAfter int
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", productID).Scan(&stockAfter)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"error":        err.Error(),
-			"stars_before": starsBefore,
-			"stars_after":  starsAfter,
+			"stock_before": stockBefore,
+			"stock_after":  stockAfter,
 			"rolled_back":  false,
-			"message":      "NO ROLLBACK! Star was added to game 1 even though error occurred. No way to undo!",
+			"message":      "NO ROLLBACK! Unit was added to product 1 even though error occurred. No way to undo!",
 		})
 	} else {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success":      true,
-			"stars_before": starsBefore,
-			"stars_after":  starsAfter,
-			"message":      "Star added to game 1 successfully (simple operation, no transaction needed)",
+			"stock_before": stockBefore,
+			"stock_after":  stockAfter,
+			"message":      "Unit added to product 1 successfully (simple operation, no transaction needed)",
 		})
 	}
 }
 
-// Transfer stars between games with transaction
-func handleTransferStars(w http.ResponseWriter, r *http.Request) {
+// Transfer stock between products with transaction
+func handleTransferStock(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		FromID int `json:"from_id"`
 		ToID   int `json:"to_id"`
-		Stars  int `json:"stars"`
+		Stock  int `json:"stock"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -278,67 +277,67 @@ func handleTransferStars(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get stars before
-	var fromStarsBefore, toStarsBefore int
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", req.FromID).Scan(&fromStarsBefore)
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", req.ToID).Scan(&toStarsBefore)
+	// Get stock before
+	var fromStockBefore, toStockBefore int
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", req.FromID).Scan(&fromStockBefore)
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", req.ToID).Scan(&toStockBefore)
 
 	// Execute transfer
-	err := transferStarsWithTransaction(req.FromID, req.ToID, req.Stars)
+	err := transferStockWithTransaction(req.FromID, req.ToID, req.Stock)
 
-	// Get stars after
-	var fromStarsAfter, toStarsAfter int
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", req.FromID).Scan(&fromStarsAfter)
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", req.ToID).Scan(&toStarsAfter)
+	// Get stock after
+	var fromStockAfter, toStockAfter int
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", req.FromID).Scan(&fromStockAfter)
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", req.ToID).Scan(&toStockAfter)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"error": err.Error(),
-			"from_game": map[string]int{
-				"before": fromStarsBefore,
-				"after":  fromStarsAfter,
+			"from_product": map[string]int{
+				"before": fromStockBefore,
+				"after":  fromStockAfter,
 			},
-			"to_game": map[string]int{
-				"before": toStarsBefore,
-				"after":  toStarsAfter,
+			"to_product": map[string]int{
+				"before": toStockBefore,
+				"after":  toStockAfter,
 			},
-			"rolled_back": fromStarsBefore == fromStarsAfter && toStarsBefore == toStarsAfter,
-			"message":     "Transaction rolled back! Both games unchanged.",
+			"rolled_back": fromStockBefore == fromStockAfter && toStockBefore == toStockAfter,
+			"message":     "Transaction rolled back! Both products unchanged.",
 		})
 	} else {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": true,
-			"from_game": map[string]int{
-				"before": fromStarsBefore,
-				"after":  fromStarsAfter,
+			"from_product": map[string]int{
+				"before": fromStockBefore,
+				"after":  fromStockAfter,
 			},
-			"to_game": map[string]int{
-				"before": toStarsBefore,
-				"after":  toStarsAfter,
+			"to_product": map[string]int{
+				"before": toStockBefore,
+				"after":  toStockAfter,
 			},
 			"message": "Transfer successful!",
 		})
 	}
 }
 
-// Get game details
-func handleGetGameDetails(w http.ResponseWriter, r *http.Request) {
-	gameIDStr := strings.TrimPrefix(r.URL.Path, "/api/demo/game/")
-	gameID, err := strconv.Atoi(gameIDStr)
+// Get product details
+func handleGetProductDetails(w http.ResponseWriter, r *http.Request) {
+	productIDStr := strings.TrimPrefix(r.URL.Path, "/api/demo/product/")
+	productID, err := strconv.Atoi(productIDStr)
 	if err != nil {
-		http.Error(w, "Invalid game ID", http.StatusBadRequest)
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
 		return
 	}
 
-	var game Game
+	var product Product
 	err = db.QueryRow(
-		"SELECT id, title, description, stars FROM games WHERE id = $1",
-		gameID,
-	).Scan(&game.ID, &game.Title, &game.Description, &game.Stars)
+		"SELECT id, name, description, price, stock FROM products WHERE id = $1",
+		productID,
+	).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Stock)
 
 	if err == sql.ErrNoRows {
-		http.Error(w, "Game not found", http.StatusNotFound)
+		http.Error(w, "Product not found", http.StatusNotFound)
 		return
 	}
 	if err != nil {
@@ -347,15 +346,15 @@ func handleGetGameDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(game)
+	json.NewEncoder(w).Encode(product)
 }
 
-// Transfer stars WITHOUT transaction - demonstrates data corruption
-func handleTransferStarsNoTx(w http.ResponseWriter, r *http.Request) {
+// Transfer stock WITHOUT transaction - demonstrates data corruption
+func handleTransferStockNoTx(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		FromID int `json:"from_id"`
 		ToID   int `json:"to_id"`
-		Stars  int `json:"stars"`
+		Stock  int `json:"stock"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -363,29 +362,29 @@ func handleTransferStarsNoTx(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get stars before
-	var fromStarsBefore, toStarsBefore int
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", req.FromID).Scan(&fromStarsBefore)
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", req.ToID).Scan(&toStarsBefore)
+	// Get stock before
+	var fromStockBefore, toStockBefore int
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", req.FromID).Scan(&fromStockBefore)
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", req.ToID).Scan(&toStockBefore)
 
 	// Execute transfer WITHOUT transaction
-	err := transferStarsWithoutTransaction(req.FromID, req.ToID, req.Stars)
+	err := transferStockWithoutTransaction(req.FromID, req.ToID, req.Stock)
 
-	// Get stars after
-	var fromStarsAfter, toStarsAfter int
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", req.FromID).Scan(&fromStarsAfter)
-	db.QueryRow("SELECT stars FROM games WHERE id = $1", req.ToID).Scan(&toStarsAfter)
+	// Get stock after
+	var fromStockAfter, toStockAfter int
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", req.FromID).Scan(&fromStockAfter)
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", req.ToID).Scan(&toStockAfter)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"error": err.Error(),
-		"from_game": map[string]int{
-			"before": fromStarsBefore,
-			"after":  fromStarsAfter,
+		"from_product": map[string]int{
+			"before": fromStockBefore,
+			"after":  fromStockAfter,
 		},
-		"to_game": map[string]int{
-			"before": toStarsBefore,
-			"after":  toStarsAfter,
+		"to_product": map[string]int{
+			"before": toStockBefore,
+			"after":  toStockAfter,
 		},
 		"rolled_back": false,
 		"message":     "NO ROLLBACK! First operation committed, second operation never executed. Data is inconsistent!",
@@ -395,11 +394,11 @@ func handleTransferStarsNoTx(w http.ResponseWriter, r *http.Request) {
 // ============= TRANSACTION LOGIC =============
 
 // WITH Transaction - proper implementation
-// Deducts from target game (TO), adds to game 1 (FROM)
-func addStarWithTransaction(gameID int) error {
-	const fromGameID = 1 // Game 1 receives the star
-	toGameID := gameID   // Target game loses the star
-	
+// Deducts from target product (TO), adds to product 1 (FROM)
+func moveStockWithTransaction(productID int) error {
+	const fromProductID = 1  // Product 1 receives the unit
+	toProductID := productID // Target product loses the unit
+
 	// Begin transaction
 	tx, err := db.Begin()
 	if err != nil {
@@ -409,36 +408,36 @@ func addStarWithTransaction(gameID int) error {
 	// Defer rollback - will only execute if commit is not called
 	defer tx.Rollback()
 
-	// Operation 1: Deduct star from TO game
-	var toStars int
-	err = tx.QueryRow("SELECT stars FROM games WHERE id = $1", toGameID).Scan(&toStars)
+	// Operation 1: Deduct unit from TO product
+	var toStock int
+	err = tx.QueryRow("SELECT stock FROM products WHERE id = $1", toProductID).Scan(&toStock)
 	if err != nil {
 		log.Println("Operation 1 failed (select to):", err)
 		return err
 	}
-	
-	if toStars < 1 {
-		return fmt.Errorf("target game has no stars to transfer")
+
+	if toStock < 1 {
+		return fmt.Errorf("target product has no stock to transfer")
 	}
-	
-	_, err = tx.Exec("UPDATE games SET stars = stars - 1 WHERE id = $1", toGameID)
+
+	_, err = tx.Exec("UPDATE products SET stock = stock - 1 WHERE id = $1", toProductID)
 	if err != nil {
 		log.Println("Operation 1 failed (deduct from to):", err)
 		return err
 	}
-	log.Printf("Operation 1: Deducted 1 star from game %d\n", toGameID)
+	log.Printf("Operation 1: Deducted 1 unit from product %d\n", toProductID)
 
 	// Simulate failure here
 	// Uncomment to test rollback:
 	// return fmt.Errorf("Simulated failure! Network error!")
 
-	// Operation 2: Add star to FROM game
-	_, err = tx.Exec("UPDATE games SET stars = stars + 1 WHERE id = $1", fromGameID)
+	// Operation 2: Add unit to FROM product
+	_, err = tx.Exec("UPDATE products SET stock = stock + 1 WHERE id = $1", fromProductID)
 	if err != nil {
 		log.Println("Operation 2 failed (add to from):", err)
 		return err // Rollback happens automatically
 	}
-	log.Printf("Operation 2: Added 1 star to game %d\n", fromGameID)
+	log.Printf("Operation 2: Added 1 unit to product %d\n", fromProductID)
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
@@ -451,65 +450,65 @@ func addStarWithTransaction(gameID int) error {
 }
 
 // WITHOUT Transaction - demonstrates the problem
-// Just adds to game 1 (FROM), no deduction
-func addStarWithoutTransaction(gameID int) error {
-	const fromGameID = 1 // Game 1 receives the star
-	
-	// Operation 1: Add star to FROM game (NO TRANSACTION)
-	_, err := db.Exec("UPDATE games SET stars = stars + 1 WHERE id = $1", fromGameID)
+// Just adds to product 1 (FROM), no deduction
+func moveStockWithoutTransaction(productID int) error {
+	const fromProductID = 1 // Product 1 receives the unit
+
+	// Operation 1: Add unit to FROM product (NO TRANSACTION)
+	_, err := db.Exec("UPDATE products SET stock = stock + 1 WHERE id = $1", fromProductID)
 	if err != nil {
 		log.Println("Operation 1 failed:", err)
 		return err
 	}
-	log.Printf("Operation 1: Added 1 star to game %d (SAVED TO DB)\n", fromGameID)
+	log.Printf("Operation 1: Added 1 unit to product %d (SAVED TO DB)\n", fromProductID)
 
 	return nil
 }
 
-// Transfer stars with transaction
-func transferStarsWithTransaction(fromID, toID, stars int) error {
+// Transfer stock with transaction
+func transferStockWithTransaction(fromID, toID, stock int) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	// Operation 1: Check and deduct stars from source game
-	var fromStarsBefore int
-	err = tx.QueryRow("SELECT stars FROM games WHERE id = $1", fromID).Scan(&fromStarsBefore)
+	// Operation 1: Check and deduct stock from source product
+	var fromStockBefore int
+	err = tx.QueryRow("SELECT stock FROM products WHERE id = $1", fromID).Scan(&fromStockBefore)
 	if err != nil {
 		return err
 	}
 
-	if fromStarsBefore < stars {
-		return fmt.Errorf("insufficient stars: game has %d but trying to transfer %d", fromStarsBefore, stars)
+	if fromStockBefore < stock {
+		return fmt.Errorf("insufficient stock: product has %d but trying to transfer %d", fromStockBefore, stock)
 	}
 
-	_, err = tx.Exec("UPDATE games SET stars = stars - $1 WHERE id = $2", stars, fromID)
+	_, err = tx.Exec("UPDATE products SET stock = stock - $1 WHERE id = $2", stock, fromID)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Deducted %d stars from game %d\n", stars, fromID)
+	log.Printf("Deducted %d units from product %d\n", stock, fromID)
 
-	// Operation 2: Check and add stars to target game
-	var toStarsBefore int
-	err = tx.QueryRow("SELECT stars FROM games WHERE id = $1", toID).Scan(&toStarsBefore)
+	// Operation 2: Check and add stock to target product
+	var toStockBefore int
+	err = tx.QueryRow("SELECT stock FROM products WHERE id = $1", toID).Scan(&toStockBefore)
 	if err != nil {
 		return err
 	}
 
-	if toStarsBefore+stars > 100 {
-		log.Printf("Business rule violation: Target game has %d stars, adding %d would exceed 100\n", toStarsBefore, stars)
-		return fmt.Errorf("target game would exceed 100 stars (%d + %d = %d)", toStarsBefore, stars, toStarsBefore+stars)
+	if toStockBefore+stock > 100 {
+		log.Printf("Business rule violation: Target product has %d units, adding %d would exceed 100\n", toStockBefore, stock)
+		return fmt.Errorf("target product would exceed 100 units (%d + %d = %d)", toStockBefore, stock, toStockBefore+stock)
 	}
 
-	_, err = tx.Exec("UPDATE games SET stars = stars + $1 WHERE id = $2", stars, toID)
+	_, err = tx.Exec("UPDATE products SET stock = stock + $1 WHERE id = $2", stock, toID)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Added %d stars to game %d\n", stars, toID)
+	log.Printf("Added %d units to product %d\n", stock, toID)
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
@@ -520,27 +519,27 @@ func transferStarsWithTransaction(fromID, toID, stars int) error {
 	return nil
 }
 
-// Transfer stars WITHOUT transaction - demonstrates data corruption
-func transferStarsWithoutTransaction(fromID, toID, stars int) error {
-	// Operation 1: Deduct stars from source game (NO TRANSACTION)
-	_, err := db.Exec("UPDATE games SET stars = stars - $1 WHERE id = $2", stars, fromID)
+// Transfer stock WITHOUT transaction - demonstrates data corruption
+func transferStockWithoutTransaction(fromID, toID, stock int) error {
+	// Operation 1: Deduct stock from source product (NO TRANSACTION)
+	_, err := db.Exec("UPDATE products SET stock = stock - $1 WHERE id = $2", stock, fromID)
 	if err != nil {
 		log.Println("Operation 1 failed:", err)
 		return err
 	}
-	log.Printf("Operation 1: Deducted %d stars from game %d (SAVED TO DB)\n", stars, fromID)
+	log.Printf("Operation 1: Deducted %d units from product %d (SAVED TO DB)\n", stock, fromID)
 
 	// Simulate failure BEFORE operation 2
-	log.Println("Simulated failure! Network error before adding stars to target")
+	log.Println("Simulated failure! Network error before adding stock to target")
 	return fmt.Errorf("network error before operation 2")
 
-	// Operation 2: Add stars to target game (NEVER EXECUTES)
+	// Operation 2: Add stock to target product (NEVER EXECUTES)
 	// This is unreachable due to return above
-	_, err = db.Exec("UPDATE games SET stars = stars + $1 WHERE id = $2", stars, toID)
-	
+	_, err = db.Exec("UPDATE products SET stock = stock + $1 WHERE id = $2", stock, toID)
+
 	// Without transaction: Operation 1 already committed
-	// Stars deducted from source but never added to target
-	// Stars disappeared! Data corruption!
-	
+	// Stock deducted from source but never added to target
+	// Stock disappeared! Data corruption!
+
 	return err
 }

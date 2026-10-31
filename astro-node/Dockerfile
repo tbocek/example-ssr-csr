@@ -1,5 +1,5 @@
-FROM node:24-alpine
-RUN corepack enable && corepack prepare pnpm@latest --activate
+FROM node:26-alpine
+RUN npm install -g pnpm@latest
 WORKDIR /app
 COPY package.json ./
 RUN pnpm install --frozen-lockfile || pnpm install

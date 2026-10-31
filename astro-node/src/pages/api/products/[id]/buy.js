@@ -1,4 +1,4 @@
-import { incrementStar } from '../../../../db.js';
+import { buyProduct } from '../../../../db.js';
 
 export async function POST({ params }) {
   const id = parseInt(params.id);
@@ -7,13 +7,13 @@ export async function POST({ params }) {
     return new Response('Invalid ID', { status: 400 });
   }
   
-  const game = await incrementStar(id);
+  const product = await buyProduct(id);
   
-  if (!game) {
-    return new Response('Not found', { status: 404 });
+  if (!product) {
+    return new Response('Not found or sold out', { status: 409 });
   }
   
-  return new Response(JSON.stringify(game), {
+  return new Response(JSON.stringify(product), {
     headers: { 'Content-Type': 'application/json' }
   });
 }

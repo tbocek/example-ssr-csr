@@ -1,8 +1,8 @@
 ---
-import { getGames, initDB } from '../db.js';
+import { getProducts, initDB } from '../db.js';
 
 await initDB();
-const games = await getGames();
+const products = await getProducts();
 ---
 
 <!DOCTYPE html>
@@ -10,7 +10,7 @@ const games = await getGames();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Manager - Astro</title>
+    <title>Shop - Astro</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><circle cx='5' cy='5' r='4' fill='%23007bff'/></svg>">
     <style>
         body {
@@ -57,47 +57,52 @@ const games = await getGames();
             background-color: #4CAF50;
             color: white;
         }
-        .star-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 20px;
+        button:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
         }
     </style>
 </head>
 <body>
-    <h1>Game Manager - Astro Islands</h1>
+    <h1>Shop - Astro Islands</h1>
     
-    <h2>Add Game</h2>
+    <h2>Add Product</h2>
     <form id="add-form">
-        <input type="text" id="title" name="title" placeholder="Game Title" required />
+        <input type="text" id="name" name="name" placeholder="Product Name" required />
         <textarea id="description" name="description" placeholder="Description" required></textarea>
-        <button type="submit">Add Game</button>
+        <input type="number" id="price" name="price" placeholder="Price (CHF)" min="0" step="0.01" required />
+        <input type="number" id="stock" name="stock" placeholder="Stock" min="0" step="1" required />
+        <button type="submit">Add Product</button>
     </form>
     
-    <h2>Games</h2>
-    <div id="games-list">
-        {games.length === 0 ? (
-            <p>No games yet. Add one above!</p>
+    <h2>Products</h2>
+    <div id="products-list">
+        {products.length === 0 ? (
+            <p>No products yet. Add one above!</p>
         ) : (
             <table>
                 <thead>
                     <tr>
                         <th>ID</th>
-                        <th>Title</th>
+                        <th>Name</th>
                         <th>Description</th>
-                        <th>Stars</th>
+                        <th>Price</th>
+                        <th>Price</th>
+                        <th>Stock</th>
+                        <th></th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
-                    {games.map(game => (
-                        <tr id={`game-${game.id}`}>
-                            <td>{game.id}</td>
-                            <td>{game.title}</td>
-                            <td>{game.description}</td>
+                    {products.map(product => (
+                        <tr id={`product-${product.id}`}>
+                            <td>{product.id}</td>
+                            <td>{product.name}</td>
+                            <td>{product.description}</td>
+                            <td>CHF {Number(product.price).toFixed(2)}</td>
+                            <td id={`stock-${product.id}`}>{product.stock}</td>
                             <td>
-                                <button class="star-btn" data-id={game.id}>⭐</button>
-                                <span id={`stars-${game.id}`}>{game.stars}</span>
+                                <button class="buy-btn" data-id={product.id} disabled={product.stock === 0}>{product.stock === 0 ? 'Sold out' : 'Buy'}</button>
                             </td>
                         </tr>
                     ))}
@@ -109,7 +114,7 @@ const games = await getGames();
     <script>
         console.log('Script loaded');
         
-        // Add game form
+        // Add product form
         const form = document.getElementById('add-form');
         console.log('Form found:', form);
         
@@ -117,27 +122,29 @@ const games = await getGames();
             e.preventDefault();
             console.log('Form submitted');
             
-            const titleInput = document.getElementById('title');
+            const nameInput = document.getElementById('name');
             const descInput = document.getElementById('description');
             
-            console.log('Inputs:', titleInput, descInput);
+            console.log('Inputs:', nameInput, descInput);
             
-            if (!titleInput || !descInput) {
+            if (!nameInput || !descInput) {
                 console.log('Inputs not found!');
                 return;
             }
             
-            const title = (titleInput as HTMLInputElement).value;
+            const name = (nameInput as HTMLInputElement).value;
             const description = (descInput as HTMLTextAreaElement).value;
             
-            console.log('Values:', { title, description });
+            console.log('Values:', { name, description });
             
             const formData = new FormData();
-            formData.append('title', title);
+            formData.append('name', name);
             formData.append('description', description);
+            formData.append('price', (document.getElementById('price') as HTMLInputElement).value);
+            formData.append('stock', (document.getElementById('stock') as HTMLInputElement).value);
             
             console.log('Sending POST...');
-            const response = await fetch('/api/games', {
+            const response = await fetch('/api/products', {
                 method: 'POST',
                 body: formData
             });
@@ -151,16 +158,21 @@ const games = await getGames();
             }
         });
 
-        // Star buttons
-        document.querySelectorAll('.star-btn').forEach(btn => {
+        // Buy buttons
+        document.querySelectorAll('.buy-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const id = (btn as HTMLElement).dataset.id;
-                const response = await fetch(`/api/games/${id}/star`, {
+                const response = await fetch(`/api/products/${id}/buy`, {
                     method: 'POST'
                 });
-                const game = await response.json();
-                const starsEl = document.getElementById(`stars-${id}`);
-                if (starsEl) starsEl.textContent = game.stars;
+                if (!response.ok) return;
+                const product = await response.json();
+                const stockEl = document.getElementById(`stock-${id}`);
+                if (stockEl) stockEl.textContent = product.stock;
+                if (product.stock === 0) {
+                    (btn as HTMLButtonElement).disabled = true;
+                    btn.textContent = 'Sold out';
+                }
             });
         });
     </script>

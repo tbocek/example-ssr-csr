@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	testDB             *sql.DB
-	postgresContainer  *testcontainerspostgres.PostgresContainer
-	testContainerCtx   context.Context
+	testDB            *sql.DB
+	postgresContainer *testcontainerspostgres.PostgresContainer
+	testContainerCtx  context.Context
 )
 
 func TestMain(m *testing.M) {
@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 	if testing.Short() {
 		os.Exit(m.Run())
 	}
-	
+
 	var err error
 	testContainerCtx = context.Background()
 
@@ -99,7 +99,7 @@ func setupTestDB(database *sql.DB) error {
 	if err != nil && err != migrate.ErrNilVersion {
 		return err
 	}
-	
+
 	// If database has migrations, drop them
 	if err == nil || dirty {
 		if err := m.Drop(); err != nil {
@@ -116,17 +116,17 @@ func setupTestDB(database *sql.DB) error {
 }
 
 func clearTestData(t *testing.T) {
-	_, err := testDB.Exec("DELETE FROM game_statistics")
+	_, err := testDB.Exec("DELETE FROM product_statistics")
 	if err != nil {
-		t.Fatalf("Failed to clear game_statistics: %v", err)
+		t.Fatalf("Failed to clear product_statistics: %v", err)
 	}
-	_, err = testDB.Exec("DELETE FROM games")
+	_, err = testDB.Exec("DELETE FROM products")
 	if err != nil {
-		t.Fatalf("Failed to clear games: %v", err)
+		t.Fatalf("Failed to clear products: %v", err)
 	}
 }
 
-func TestIntegration_TransferStarsWithTransaction_Success(t *testing.T) {
+func TestIntegration_TransferStockWithTransaction_Success(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -134,51 +134,51 @@ func TestIntegration_TransferStarsWithTransaction_Success(t *testing.T) {
 	clearTestData(t)
 	db = testDB // Use test database
 
-	// Arrange: Insert test games
-	var fromGameID, toGameID int
+	// Arrange: Insert test products
+	var fromProductID, toProductID int
 	err := testDB.QueryRow(
-		"INSERT INTO games (title, description, stars) VALUES ($1, $2, $3) RETURNING id",
-		"Source Game", "Has stars", 10,
-	).Scan(&fromGameID)
+		"INSERT INTO products (name, description, stock) VALUES ($1, $2, $3) RETURNING id",
+		"Source Product", "Has stock", 10,
+	).Scan(&fromProductID)
 	if err != nil {
-		t.Fatalf("Failed to insert source game: %v", err)
+		t.Fatalf("Failed to insert source product: %v", err)
 	}
 
 	err = testDB.QueryRow(
-		"INSERT INTO games (title, description, stars) VALUES ($1, $2, $3) RETURNING id",
-		"Target Game", "Needs stars", 5,
-	).Scan(&toGameID)
+		"INSERT INTO products (name, description, stock) VALUES ($1, $2, $3) RETURNING id",
+		"Target Product", "Needs stock", 5,
+	).Scan(&toProductID)
 	if err != nil {
-		t.Fatalf("Failed to insert target game: %v", err)
+		t.Fatalf("Failed to insert target product: %v", err)
 	}
 
-	// Act: Transfer 3 stars
-	err = transferStarsWithTransaction(fromGameID, toGameID, 3)
+	// Act: Transfer 3 units
+	err = transferStockWithTransaction(fromProductID, toProductID, 3)
 	if err != nil {
 		t.Fatalf("Transfer failed: %v", err)
 	}
 
 	// Assert: Verify final states
-	var fromStars, toStars int
-	err = testDB.QueryRow("SELECT stars FROM games WHERE id = $1", fromGameID).Scan(&fromStars)
+	var fromStock, toStock int
+	err = testDB.QueryRow("SELECT stock FROM products WHERE id = $1", fromProductID).Scan(&fromStock)
 	if err != nil {
-		t.Fatalf("Failed to get source game stars: %v", err)
+		t.Fatalf("Failed to get source product stock: %v", err)
 	}
 
-	err = testDB.QueryRow("SELECT stars FROM games WHERE id = $1", toGameID).Scan(&toStars)
+	err = testDB.QueryRow("SELECT stock FROM products WHERE id = $1", toProductID).Scan(&toStock)
 	if err != nil {
-		t.Fatalf("Failed to get target game stars: %v", err)
+		t.Fatalf("Failed to get target product stock: %v", err)
 	}
 
-	if fromStars != 7 {
-		t.Errorf("Expected source game to have 7 stars, got %d", fromStars)
+	if fromStock != 7 {
+		t.Errorf("Expected source product to have 7 units, got %d", fromStock)
 	}
-	if toStars != 8 {
-		t.Errorf("Expected target game to have 8 stars, got %d", toStars)
+	if toStock != 8 {
+		t.Errorf("Expected target product to have 8 units, got %d", toStock)
 	}
 }
 
-func TestIntegration_TransferStarsWithTransaction_RollbackOnInsufficientStars(t *testing.T) {
+func TestIntegration_TransferStockWithTransaction_RollbackOnInsufficientStock(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -186,46 +186,46 @@ func TestIntegration_TransferStarsWithTransaction_RollbackOnInsufficientStars(t 
 	clearTestData(t)
 	db = testDB
 
-	// Arrange: Insert test games
-	var fromGameID, toGameID int
+	// Arrange: Insert test products
+	var fromProductID, toProductID int
 	err := testDB.QueryRow(
-		"INSERT INTO games (title, description, stars) VALUES ($1, $2, $3) RETURNING id",
-		"Source Game", "Not enough stars", 2,
-	).Scan(&fromGameID)
+		"INSERT INTO products (name, description, stock) VALUES ($1, $2, $3) RETURNING id",
+		"Source Product", "Not enough stock", 2,
+	).Scan(&fromProductID)
 	if err != nil {
-		t.Fatalf("Failed to insert source game: %v", err)
+		t.Fatalf("Failed to insert source product: %v", err)
 	}
 
 	err = testDB.QueryRow(
-		"INSERT INTO games (title, description, stars) VALUES ($1, $2, $3) RETURNING id",
-		"Target Game", "Waiting", 5,
-	).Scan(&toGameID)
+		"INSERT INTO products (name, description, stock) VALUES ($1, $2, $3) RETURNING id",
+		"Target Product", "Waiting", 5,
+	).Scan(&toProductID)
 	if err != nil {
-		t.Fatalf("Failed to insert target game: %v", err)
+		t.Fatalf("Failed to insert target product: %v", err)
 	}
 
-	// Act: Try to transfer more stars than available
-	err = transferStarsWithTransaction(fromGameID, toGameID, 10)
+	// Act: Try to transfer more stock than available
+	err = transferStockWithTransaction(fromProductID, toProductID, 10)
 
 	// Assert: Should fail
 	if err == nil {
-		t.Error("Expected error for insufficient stars, got nil")
+		t.Error("Expected error for insufficient stock, got nil")
 	}
 
-	// Verify both games unchanged (rollback worked)
-	var fromStars, toStars int
-	testDB.QueryRow("SELECT stars FROM games WHERE id = $1", fromGameID).Scan(&fromStars)
-	testDB.QueryRow("SELECT stars FROM games WHERE id = $1", toGameID).Scan(&toStars)
+	// Verify both products unchanged (rollback worked)
+	var fromStock, toStock int
+	testDB.QueryRow("SELECT stock FROM products WHERE id = $1", fromProductID).Scan(&fromStock)
+	testDB.QueryRow("SELECT stock FROM products WHERE id = $1", toProductID).Scan(&toStock)
 
-	if fromStars != 2 {
-		t.Errorf("Expected source game unchanged at 2 stars, got %d", fromStars)
+	if fromStock != 2 {
+		t.Errorf("Expected source product unchanged at 2 units, got %d", fromStock)
 	}
-	if toStars != 5 {
-		t.Errorf("Expected target game unchanged at 5 stars, got %d", toStars)
+	if toStock != 5 {
+		t.Errorf("Expected target product unchanged at 5 units, got %d", toStock)
 	}
 }
 
-func TestIntegration_TransferStarsWithTransaction_RollbackOnMaxExceeded(t *testing.T) {
+func TestIntegration_TransferStockWithTransaction_RollbackOnMaxExceeded(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -233,26 +233,26 @@ func TestIntegration_TransferStarsWithTransaction_RollbackOnMaxExceeded(t *testi
 	clearTestData(t)
 	db = testDB
 
-	// Arrange: Target game near maximum
-	var fromGameID, toGameID int
+	// Arrange: Target product near maximum
+	var fromProductID, toProductID int
 	err := testDB.QueryRow(
-		"INSERT INTO games (title, description, stars) VALUES ($1, $2, $3) RETURNING id",
-		"Source Game", "Donor", 20,
-	).Scan(&fromGameID)
+		"INSERT INTO products (name, description, stock) VALUES ($1, $2, $3) RETURNING id",
+		"Source Product", "Donor", 20,
+	).Scan(&fromProductID)
 	if err != nil {
-		t.Fatalf("Failed to insert source game: %v", err)
+		t.Fatalf("Failed to insert source product: %v", err)
 	}
 
 	err = testDB.QueryRow(
-		"INSERT INTO games (title, description, stars) VALUES ($1, $2, $3) RETURNING id",
-		"Target Game", "Near max", 95,
-	).Scan(&toGameID)
+		"INSERT INTO products (name, description, stock) VALUES ($1, $2, $3) RETURNING id",
+		"Target Product", "Near max", 95,
+	).Scan(&toProductID)
 	if err != nil {
-		t.Fatalf("Failed to insert target game: %v", err)
+		t.Fatalf("Failed to insert target product: %v", err)
 	}
 
-	// Act: Try to transfer stars that would exceed 100
-	err = transferStarsWithTransaction(fromGameID, toGameID, 10)
+	// Act: Try to transfer stock that would exceed 100
+	err = transferStockWithTransaction(fromProductID, toProductID, 10)
 
 	// Assert: Should fail with business rule violation
 	if err == nil {
@@ -260,19 +260,19 @@ func TestIntegration_TransferStarsWithTransaction_RollbackOnMaxExceeded(t *testi
 	}
 
 	// Verify rollback
-	var fromStars, toStars int
-	testDB.QueryRow("SELECT stars FROM games WHERE id = $1", fromGameID).Scan(&fromStars)
-	testDB.QueryRow("SELECT stars FROM games WHERE id = $1", toGameID).Scan(&toStars)
+	var fromStock, toStock int
+	testDB.QueryRow("SELECT stock FROM products WHERE id = $1", fromProductID).Scan(&fromStock)
+	testDB.QueryRow("SELECT stock FROM products WHERE id = $1", toProductID).Scan(&toStock)
 
-	if fromStars != 20 {
-		t.Errorf("Expected source game unchanged at 20 stars, got %d", fromStars)
+	if fromStock != 20 {
+		t.Errorf("Expected source product unchanged at 20 units, got %d", fromStock)
 	}
-	if toStars != 95 {
-		t.Errorf("Expected target game unchanged at 95 stars, got %d", toStars)
+	if toStock != 95 {
+		t.Errorf("Expected target product unchanged at 95 units, got %d", toStock)
 	}
 }
 
-func TestIntegration_TransferStarsWithoutTransaction_DataCorruption(t *testing.T) {
+func TestIntegration_TransferStockWithoutTransaction_DataCorruption(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -281,52 +281,52 @@ func TestIntegration_TransferStarsWithoutTransaction_DataCorruption(t *testing.T
 	db = testDB
 
 	// Arrange
-	var fromGameID, toGameID int
+	var fromProductID, toProductID int
 	err := testDB.QueryRow(
-		"INSERT INTO games (title, description, stars) VALUES ($1, $2, $3) RETURNING id",
-		"Source Game", "Will lose stars", 10,
-	).Scan(&fromGameID)
+		"INSERT INTO products (name, description, stock) VALUES ($1, $2, $3) RETURNING id",
+		"Source Product", "Will lose stock", 10,
+	).Scan(&fromProductID)
 	if err != nil {
-		t.Fatalf("Failed to insert source game: %v", err)
+		t.Fatalf("Failed to insert source product: %v", err)
 	}
 
 	err = testDB.QueryRow(
-		"INSERT INTO games (title, description, stars) VALUES ($1, $2, $3) RETURNING id",
-		"Target Game", "Won't receive stars", 5,
-	).Scan(&toGameID)
+		"INSERT INTO products (name, description, stock) VALUES ($1, $2, $3) RETURNING id",
+		"Target Product", "Won't receive stock", 5,
+	).Scan(&toProductID)
 	if err != nil {
-		t.Fatalf("Failed to insert target game: %v", err)
+		t.Fatalf("Failed to insert target product: %v", err)
 	}
 
 	// Act: Call function without transaction (always fails after first operation)
-	err = transferStarsWithoutTransaction(fromGameID, toGameID, 3)
+	err = transferStockWithoutTransaction(fromProductID, toProductID, 3)
 
 	// Assert: Should fail
 	if err == nil {
 		t.Error("Expected error from simulated failure")
 	}
 
-	// Verify data corruption: stars deducted but never added
-	var fromStars, toStars int
-	testDB.QueryRow("SELECT stars FROM games WHERE id = $1", fromGameID).Scan(&fromStars)
-	testDB.QueryRow("SELECT stars FROM games WHERE id = $1", toGameID).Scan(&toStars)
+	// Verify data corruption: stock deducted but never added
+	var fromStock, toStock int
+	testDB.QueryRow("SELECT stock FROM products WHERE id = $1", fromProductID).Scan(&fromStock)
+	testDB.QueryRow("SELECT stock FROM products WHERE id = $1", toProductID).Scan(&toStock)
 
 	// This demonstrates the problem
-	if fromStars != 7 {
-		t.Errorf("Expected source game to have 7 stars (deducted), got %d", fromStars)
+	if fromStock != 7 {
+		t.Errorf("Expected source product to have 7 units (deducted), got %d", fromStock)
 	}
-	if toStars != 5 {
-		t.Errorf("Expected target game unchanged at 5 stars (never added), got %d", toStars)
+	if toStock != 5 {
+		t.Errorf("Expected target product unchanged at 5 units (never added), got %d", toStock)
 	}
 
-	// 3 stars disappeared! Total before: 15, Total after: 12
-	total := fromStars + toStars
+	// 3 units disappeared! Total before: 15, Total after: 12
+	total := fromStock + toStock
 	if total != 12 {
-		t.Errorf("Data corruption: expected 12 total stars, got %d", total)
+		t.Errorf("Data corruption: expected 12 total stock, got %d", total)
 	}
 }
 
-func TestIntegration_AddStarWithTransaction_Success(t *testing.T) {
+func TestIntegration_MoveStockWithTransaction_Success(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test")
 	}
@@ -334,39 +334,39 @@ func TestIntegration_AddStarWithTransaction_Success(t *testing.T) {
 	clearTestData(t)
 	db = testDB
 
-	// Arrange: Create game 1 and target game
+	// Arrange: Create product 1 and target product
 	_, err := testDB.Exec(
-		"INSERT INTO games (id, title, description, stars) VALUES ($1, $2, $3, $4)",
-		1, "Game 1", "Receives stars", 0,
+		"INSERT INTO products (id, name, description, stock) VALUES ($1, $2, $3, $4)",
+		1, "Product 1", "Receives stock", 0,
 	)
 	if err != nil {
-		t.Fatalf("Failed to insert game 1: %v", err)
+		t.Fatalf("Failed to insert product 1: %v", err)
 	}
 
-	var targetGameID int
+	var targetProductID int
 	err = testDB.QueryRow(
-		"INSERT INTO games (title, description, stars) VALUES ($1, $2, $3) RETURNING id",
-		"Target Game", "Loses star", 5,
-	).Scan(&targetGameID)
+		"INSERT INTO products (name, description, stock) VALUES ($1, $2, $3) RETURNING id",
+		"Target Product", "Loses unit", 5,
+	).Scan(&targetProductID)
 	if err != nil {
-		t.Fatalf("Failed to insert target game: %v", err)
+		t.Fatalf("Failed to insert target product: %v", err)
 	}
 
 	// Act
-	err = addStarWithTransaction(targetGameID)
+	err = moveStockWithTransaction(targetProductID)
 	if err != nil {
-		t.Fatalf("Add star failed: %v", err)
+		t.Fatalf("Add unit failed: %v", err)
 	}
 
 	// Assert
-	var game1Stars, targetStars int
-	testDB.QueryRow("SELECT stars FROM games WHERE id = 1").Scan(&game1Stars)
-	testDB.QueryRow("SELECT stars FROM games WHERE id = $1", targetGameID).Scan(&targetStars)
+	var product1Stock, targetStock int
+	testDB.QueryRow("SELECT stock FROM products WHERE id = 1").Scan(&product1Stock)
+	testDB.QueryRow("SELECT stock FROM products WHERE id = $1", targetProductID).Scan(&targetStock)
 
-	if game1Stars != 1 {
-		t.Errorf("Expected game 1 to have 1 star, got %d", game1Stars)
+	if product1Stock != 1 {
+		t.Errorf("Expected product 1 to have 1 unit, got %d", product1Stock)
 	}
-	if targetStars != 4 {
-		t.Errorf("Expected target game to have 4 stars, got %d", targetStars)
+	if targetStock != 4 {
+		t.Errorf("Expected target product to have 4 units, got %d", targetStock)
 	}
 }

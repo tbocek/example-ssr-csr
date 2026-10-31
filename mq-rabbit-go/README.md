@@ -4,7 +4,7 @@ A minimal Go application demonstrating explicit transaction management with `Beg
 
 ## Stack
 
-- Go 1.25+
+- Go 1.27+
 - PostgreSQL 18
 - Pure `database/sql` (no ORM)
 - Vue.js 3 (frontend)
@@ -21,7 +21,7 @@ A minimal Go application demonstrating explicit transaction management with `Beg
 ### Prerequisites
 
 - Docker and Docker Compose
-- Go 1.25+ (for local development without Docker)
+- Go 1.27+ (for local development without Docker)
 
 ### With Docker Compose
 
@@ -36,28 +36,28 @@ The application will be available at `http://localhost:8081`
 ### Without Transaction (BAD)
 
 ```go
-func addStarWithoutTransaction(gameID int) error {
-    // Operation 1: Update game (NO TRANSACTION)
-    _, err := db.Exec("UPDATE games SET stars = stars + 1 WHERE id = $1", gameID)
+func moveStockWithoutTransaction(productID int) error {
+    // Operation 1: Update product (NO TRANSACTION)
+    _, err := db.Exec("UPDATE products SET stock = stock + 1 WHERE id = $1", productID)
     if err != nil {
         return err
     }
-    // Stars are ALREADY SAVED to database!
+    // Stock is ALREADY SAVED to database!
     
     // Failure happens here
     return errors.New("Network error!")
     
     // Operation 2 never executes
-    // Result: Game has +1 star, statistics not updated
+    // Result: Product has +1 unit, statistics not updated
 }
 ```
 
-**Result:** Game has +1 star, but statistics not updated. Data is inconsistent.
+**Result:** Product has +1 unit, but statistics not updated. Data is inconsistent.
 
 ### With Transaction (GOOD)
 
 ```go
-func addStarWithTransaction(gameID int) error {
+func moveStockWithTransaction(productID int) error {
     // Begin transaction
     tx, err := db.Begin()
     if err != nil {
@@ -65,8 +65,8 @@ func addStarWithTransaction(gameID int) error {
     }
     defer tx.Rollback()  // Rollback if commit not called
     
-    // Operation 1: Update game
-    _, err = tx.Exec("UPDATE games SET stars = stars + 1 WHERE id = $1", gameID)
+    // Operation 1: Update product
+    _, err = tx.Exec("UPDATE products SET stock = stock + 1 WHERE id = $1", productID)
     if err != nil {
         return err  // Rollback happens via defer
     }
@@ -81,32 +81,32 @@ func addStarWithTransaction(gameID int) error {
 }
 ```
 
-**Result:** BOTH operations rolled back. Game still has original star count. Data is consistent.
+**Result:** BOTH operations rolled back. Product still has original stock. Data is consistent.
 
 ## API Endpoints
 
 ### Basic CRUD Endpoints
 
-- `GET /api/games` - List all games
-- `POST /api/games` - Create new game
-- `POST /api/games/{id}/star` - Add star (simple, no transaction demo)
+- `GET /api/products` - List all products
+- `POST /api/products` - Create new product
+- `POST /api/products/{id}/buy` - Decrement stock (simple, no transaction demo)
 
 ### Transaction Demo Endpoints
 
-#### Check Game State
+#### Check Product State
 
 ```bash
-curl http://localhost:8080/api/demo/game/1
+curl http://localhost:8080/api/demo/product/1
 ```
 
-Returns current game details including star count.
+Returns current product details including stock.
 
 #### Test WITH Transaction (Rollback Works)
 
 ```bash
 # Check initial state
-curl http://localhost:8081/api/demo/game/1
-# Output: {"id":1,"title":"The Legend of Zelda","stars":5}
+curl http://localhost:8081/api/demo/product/1
+# Output: {"id":1,"name":"Mechanical Keyboard","stock":5}
 
 # Trigger operation with transaction
 curl -X POST http://localhost:8081/api/demo/with-transaction/1
@@ -114,10 +114,10 @@ curl -X POST http://localhost:8081/api/demo/with-transaction/1
 # Response shows rollback worked:
 # {
 #   "error": "Simulated failure!",
-#   "stars_before": 5,
-#   "stars_after": 5,
+#   "stock_before": 5,
+#   "stock_after": 5,
 #   "rolled_back": true,
-#   "message": "Transaction rolled back! Stars unchanged."
+#   "message": "Transaction rolled back! Stock unchanged."
 # }
 ```
 
@@ -125,8 +125,8 @@ curl -X POST http://localhost:8081/api/demo/with-transaction/1
 
 ```bash
 # Check initial state
-curl http://localhost:8081/api/demo/game/1
-# Output: {"stars":5}
+curl http://localhost:8081/api/demo/product/1
+# Output: {"stock":5}
 
 # Trigger operation WITHOUT transaction
 curl -X POST http://localhost:8081/api/demo/without-transaction/1
@@ -134,35 +134,35 @@ curl -X POST http://localhost:8081/api/demo/without-transaction/1
 # Response shows NO rollback:
 # {
 #   "error": "Simulated failure!",
-#   "stars_before": 5,
-#   "stars_after": 6,
+#   "stock_before": 5,
+#   "stock_after": 6,
 #   "rolled_back": false,
-#   "message": "NO ROLLBACK! Stars increased despite error"
+#   "message": "NO ROLLBACK! Stock increased despite error"
 # }
 ```
 
-#### Test Transfer Stars
+#### Test Transfer Stock
 
 ```bash
-# Transfer 10 stars from game 1 to game 2
+# Transfer 10 units from product 1 to product 2
 curl -X POST http://localhost:8081/api/demo/transfer \
   -H "Content-Type: application/json" \
-  -d '{"from_id":1,"to_id":2,"stars":10}'
+  -d '{"from_id":1,"to_id":2,"stock":10}'
 
-# If transfer would make game 2 exceed 100 stars:
+# If transfer would make product 2 exceed 100 units:
 # {
-#   "error": "Target game would exceed 100 stars",
-#   "from_game": {"before": 50, "after": 50},
-#   "to_game": {"before": 95, "after": 95},
+#   "error": "Target product would exceed 100 units",
+#   "from_product": {"before": 50, "after": 50},
+#   "to_product": {"before": 95, "after": 95},
 #   "rolled_back": true,
-#   "message": "Transaction rolled back! Both games unchanged."
+#   "message": "Transaction rolled back! Both products unchanged."
 # }
 
 # Successful transfer:
 # {
 #   "success": true,
-#   "from_game": {"before": 50, "after": 40},
-#   "to_game": {"before": 30, "after": 40},
+#   "from_product": {"before": 50, "after": 40},
+#   "to_product": {"before": 30, "after": 40},
 #   "message": "Transfer successful!"
 # }
 ```
@@ -195,9 +195,9 @@ return tx.Commit()              // Explicit commit
 
 ```java
 @Transactional
-public void addStar(Long gameId) {
-    game.addStar();
-    gameRepository.save(game);  // Transaction automatic
+public void buy(Long productId) {
+    product.buy();
+    productRepository.save(product);  // Transaction automatic
     
     // Exception triggers automatic rollback
 }
@@ -236,29 +236,29 @@ public void addStar(Long gameId) {
 ### Using the Frontend
 
 1. Open `http://localhost:8081` in browser
-2. See list of sample games (Zelda, Mario, Metroid)
-3. Click "With TX" button on any game
-   - Observe: Stars remain unchanged (rollback worked)
+2. Add a few products using the form
+3. Click "With TX" button on any product
+   - Observe: Stock remain unchanged (rollback worked)
    - Check result box: Shows `rolled_back: true`
 4. Click "Without TX" button (with confirmation)
    - WARNING: This demonstrates data corruption
-   - Observe: Stars increased despite error
+   - Observe: Stock increased despite error
    - Check result box: Shows `rolled_back: false`
-5. Use transfer form to move stars between games
-   - If target would exceed 100 stars, transfer rolls back
-   - Both games remain unchanged
+5. Use transfer form to move stock between products
+   - If target would exceed 100 units, transfer rolls back
+   - Both products remain unchanged
 
 ### Verify in Database
 
 ```
-docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM games;"
-docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM game_statistics;"
+docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM products;"
+docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM product_statistics;"
 
 
 docker exec -it tx-go-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM schema_migrations;"
 
 go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-#does not crash as game_statistics here not used...
+#does not crash as product_statistics here not used...
 migrate -path migrations -database "postgres://postgres:password@localhost:5432/postgres?sslmode=disable" down 1
 ```
 
@@ -282,7 +282,7 @@ migrate -path migrations -database "postgres://postgres:password@localhost:5432/
 - Multiple database operations must succeed together
 - Business logic spans multiple tables
 - Data consistency is critical (money, inventory, user accounts)
-- Updating related entities (game + statistics)
+- Updating related entities (product + statistics)
 
 **Don't need transactions for:**
 - Single read operation (`SELECT`)

@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS game_statistics;
+DROP TABLE IF EXISTS product_statistics;

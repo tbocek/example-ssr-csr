@@ -1,11 +1,11 @@
-# Game Management - HTMX + Node.js + PostgreSQL
+# Shop - HTMX + Node.js + PostgreSQL
 
 Simple CRUD app demonstrating server-side rendering with HTMX. No client-side JavaScript framework needed.
 
 ## Stack
 
 - **Frontend**: HTMX (hypermedia-driven)
-- **Backend**: Node.js 24 + Express
+- **Backend**: Node.js 26 + Express
 - **Database**: PostgreSQL 18
 - **Reverse Proxy**: Caddy
 - **Container**: Docker Compose
@@ -49,9 +49,9 @@ open http://localhost:8083
 
 ## Features
 
-- ✅ Add games (title + description)
-- ✅ List games with star counts
-- ✅ Increment stars (optimistic update)
+- ✅ Add products (name + description)
+- ✅ List products with stock
+- ✅ Increment stock (optimistic update)
 - ✅ Fast shutdown (0s grace period for backend)
 - ✅ Persistent PostgreSQL storage
 
@@ -72,9 +72,9 @@ docker compose logs -f backend
 
 All endpoints return HTML fragments:
 
-- `GET /api/games` - Returns `<table>` with all games
-- `POST /api/games` - Creates game, returns updated `<table>`
-- `POST /api/games/:id/star` - Increments star, returns updated `<tr>`
+- `GET /api/products` - Returns `<table>` with all products
+- `POST /api/products` - Creates product, returns updated `<table>`
+- `POST /api/products/:id/buy` - Decrements stock, returns updated `<tr>`
 
 ## Database
 

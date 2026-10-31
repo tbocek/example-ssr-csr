@@ -19,11 +19,12 @@ import (
 	"github.com/segmentio/kafka-go"
 )
 
-type Game struct {
-	ID          int    `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Stars       int    `json:"stars"`
+type Product struct {
+	ID          int     `json:"id"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Price       float64 `json:"price"`
+	Stock       int     `json:"stock"`
 }
 
 var db *sql.DB
@@ -35,7 +36,7 @@ func main() {
 	// Database setup
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://postgres:postgres@db:5432/gamedb?sslmode=disable"
+		dbURL = "postgres://postgres:postgres@db:5432/shopdb?sslmode=disable"
 	}
 
 	db, err = sql.Open("postgres", dbURL)
@@ -62,9 +63,9 @@ func main() {
 	defer kafkaWriter.Close()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/games", handleGames)
-	mux.HandleFunc("POST /api/games", handleGames)
-	mux.HandleFunc("POST /api/games/{id}/star", handleGameActions)
+	mux.HandleFunc("GET /api/products", handleProducts)
+	mux.HandleFunc("POST /api/products", handleProducts)
+	mux.HandleFunc("POST /api/products/{id}/buy", handleProductActions)
 
 	log.Println("Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", mux))
@@ -78,7 +79,7 @@ func initKafka() {
 
 	kafkaWriter = &kafka.Writer{
 		Addr:         kafka.TCP(strings.Split(brokers, ",")...),
-		Topic:        "game-events",
+		Topic:        "product-events",
 		Balancer:     &kafka.LeastBytes{},
 		WriteTimeout: 10 * time.Second,
 		ReadTimeout:  10 * time.Second,
@@ -87,10 +88,10 @@ func initKafka() {
 	log.Printf("Kafka producer initialized, brokers: %s", brokers)
 }
 
-func publishToKafka(gameData []byte) error {
+func publishToKafka(productData []byte) error {
 	message := kafka.Message{
-		Key:   []byte("game-star-event"),
-		Value: gameData,
+		Key:   []byte("product-buy-event"),
+		Value: productData,
 		Time:  time.Now(),
 	}
 
@@ -102,7 +103,7 @@ func publishToKafka(gameData []byte) error {
 		return fmt.Errorf("failed to write message to Kafka: %v", err)
 	}
 
-	log.Printf("Published event to Kafka topic: game-events")
+	log.Printf("Published event to Kafka topic: product-events")
 	return nil
 }
 
@@ -127,76 +128,74 @@ func runMigrations(db *sql.DB) error {
 	return nil
 }
 
-func handleGames(w http.ResponseWriter, r *http.Request) {
+func handleProducts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	switch r.Method {
 	case "GET":
-		rows, err := db.Query("SELECT id, title, description, stars FROM games ORDER BY id")
+		rows, err := db.Query("SELECT id, name, description, price, stock FROM products ORDER BY id")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		defer rows.Close()
 
-		games := []Game{}
+		products := []Product{}
 		for rows.Next() {
-			var game Game
-			if err := rows.Scan(&game.ID, &game.Title, &game.Description, &game.Stars); err != nil {
+			var product Product
+			if err := rows.Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Stock); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			games = append(games, game)
+			products = append(products, product)
 		}
 
-		json.NewEncoder(w).Encode(games)
+		json.NewEncoder(w).Encode(products)
 
 	case "POST":
-		var newGame Game
-		if err := json.NewDecoder(r.Body).Decode(&newGame); err != nil {
+		var newProduct Product
+		if err := json.NewDecoder(r.Body).Decode(&newProduct); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		err := db.QueryRow(
-			"INSERT INTO games (title, description, stars) VALUES ($1, $2, 0) RETURNING id",
-			newGame.Title, newGame.Description,
-		).Scan(&newGame.ID)
+			"INSERT INTO products (name, description, price, stock) VALUES ($1, $2, $3, $4) RETURNING id",
+			newProduct.Name, newProduct.Description, newProduct.Price, newProduct.Stock,
+		).Scan(&newProduct.ID)
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		newGame.Stars = 0
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(newGame)
+		json.NewEncoder(w).Encode(newProduct)
 	}
 }
 
-func handleGameActions(w http.ResponseWriter, r *http.Request) {
-	path := strings.TrimPrefix(r.URL.Path, "/api/games/")
+func handleProductActions(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/products/")
 	parts := strings.Split(path, "/")
-	if len(parts) < 2 || parts[1] != "star" {
+	if len(parts) < 2 || parts[1] != "buy" {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
 
-	gameID, err := strconv.Atoi(parts[0])
+	productID, err := strconv.Atoi(parts[0])
 	if err != nil {
-		http.Error(w, "Invalid game ID", http.StatusBadRequest)
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
 		return
 	}
 
 	if r.Method == "POST" {
-		var game Game
+		var product Product
 		err := db.QueryRow(
-			"UPDATE games SET stars = stars + 1 WHERE id = $1 RETURNING id, title, description, stars",
-			gameID,
-		).Scan(&game.ID, &game.Title, &game.Description, &game.Stars)
+			"UPDATE products SET stock = stock - 1 WHERE id = $1 AND stock > 0 RETURNING id, name, description, price, stock",
+			productID,
+		).Scan(&product.ID, &product.Name, &product.Description, &product.Price, &product.Stock)
 
 		if err == sql.ErrNoRows {
-			http.Error(w, "Game not found", http.StatusNotFound)
+			http.Error(w, "Product not found or sold out", http.StatusConflict)
 			return
 		}
 		if err != nil {
@@ -205,14 +204,14 @@ func handleGameActions(w http.ResponseWriter, r *http.Request) {
 		}
 
 		//do in a go-routine
-		body, err := json.Marshal(game)
+		body, err := json.Marshal(product)
 		if err := publishToKafka(body); err != nil {
 			log.Printf("Failed to publish to Kafka: %v", err)
 		} else {
-			log.Printf("Published event for game %d", game.ID)
+			log.Printf("Published event for product %d", product.ID)
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(game)
+		json.NewEncoder(w).Encode(product)
 	}
 }

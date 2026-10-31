@@ -1,5 +1,5 @@
 {
-  "name": "astro-game-manager",
+  "name": "astro-shop",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
@@ -8,8 +8,8 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "astro": "^5.15.2",
-    "@astrojs/node": "^9.5.0",
-    "pg": "^8.16.3"
+    "astro": "^7.4.4",
+    "@astrojs/node": "^11.1.9",
+    "pg": "^8.23.1"
   }
 }

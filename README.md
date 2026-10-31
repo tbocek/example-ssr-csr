@@ -1,6 +1,6 @@
 # SSR vs CSR vs Hybrid Rendering Examples
 
-This repository contains examples demonstrating different rendering approaches: Server-Side Rendering (SSR) with a shop application, and Client-Side Rendering (CSR) and Hybrid Rendering with PrevelteKit with a Game Management application.
+This repository contains implementations of the same Shop application, demonstrating different rendering approaches: Server-Side Rendering (SSR), Client-Side Rendering (CSR), and Hybrid Rendering with PrevelteKit.
 
 ## Projects
 
@@ -111,7 +111,7 @@ All three examples implement a three-tier architecture:
 1. Browser requests `/`
 2. Server sends empty HTML shell + JavaScript bundle
 3. Browser downloads and executes JavaScript
-4. JavaScript makes API call to `/api/games`
+4. JavaScript makes API call to `/api/products`
 5. API queries database, returns JSON
 6. Vue renders HTML in browser
 7. User interaction → JavaScript updates DOM (no reload)
@@ -121,7 +121,7 @@ All three examples implement a three-tier architecture:
 2. Server sends pre-rendered HTML with visible content
 3. Browser displays content immediately (fast FCP)
 4. JavaScript downloads and hydrates page
-5. JavaScript makes API call to `/api/games`
+5. JavaScript makes API call to `/api/products`
 6. API queries database, returns JSON
 7. Svelte updates DOM with fresh data
 8. User interaction → JavaScript updates DOM (no reload)
@@ -153,12 +153,11 @@ docker compose up --build
 
 ## Common Features
 
-The CSR and Hybrid implementations provide the same functionality (the SSR example is a shop: add products, list them, buy to decrement stock):
-- ✅ Add games with title and description
-- ✅ List all games in a table
-- ✅ Click star button to increment count
+All three implementations provide the same functionality:
+- ✅ Add products with name, description, price and stock
+- ✅ List all products in a table
+- ✅ Click Buy button to decrement stock
 - ✅ Persistent storage in PostgreSQL
-- ✅ Sample data (Zelda, Mario) loaded on startup
 
 ---
 

@@ -4,8 +4,8 @@ A minimal Spring Boot application demonstrating transaction management with `@Tr
 
 ## Stack
 
-- Java 25
-- Spring Boot 3.5.6
+- Java 27
+- Spring Boot 4.1.2
 - Spring Data JPA
 - PostgreSQL 18
 - Docker & Docker Compose
@@ -15,15 +15,15 @@ A minimal Spring Boot application demonstrating transaction management with `@Tr
 ```
 src/main/java/ch/ost/i/dsl/ssr/
 ├── DemoApplication.java                    # Main application entry point
-├── Game.java                               # JPA entity for games
-├── GameRepository.java                     # JPA repository for games
-├── GameStatistics.java                     # JPA entity for statistics
-├── GameStatisticsRepository.java           # JPA repository for statistics
-├── GameService.java                        # Service layer with @Transactional
-├── GameServiceWithFailureDemo.java         # Demo service with simulated failures
+├── Product.java                               # JPA entity for products
+├── ProductRepository.java                     # JPA repository for products
+├── ProductStatistics.java                     # JPA entity for statistics
+├── ProductStatisticsRepository.java           # JPA repository for statistics
+├── ProductService.java                        # Service layer with @Transactional
+├── ProductServiceWithFailureDemo.java         # Demo service with simulated failures
 ├── SimpleTransactionDemo.java              # Simplest possible demonstration
 ├── TransactionDemoController.java          # REST endpoints for testing
-└── GameController.java                     # MVC controller
+└── ProductController.java                     # MVC controller
 ```
 
 ## What This Demo Shows
@@ -37,7 +37,7 @@ src/main/java/ch/ost/i/dsl/ssr/
 ### Prerequisites
 
 - Docker and Docker Compose
-- Java 25 (for local development without Docker)
+- Java 27 (for local development without Docker)
 
 ### With Docker Compose
 
@@ -52,76 +52,76 @@ The application will be available at `http://localhost:8080`
 ### Without `@Transactional` (BAD)
 
 ```java
-public void addStarWithStatistics(Long gameId) {
-    game.addStar();
-    gameRepository.save(game);        // Operation 1: SUCCEEDS
+public void buyWithStatistics(Long productId) {
+    product.buy();
+    productRepository.save(product);        // Operation 1: SUCCEEDS
 
     // Exception thrown here - network error, database crash, etc.
 
-    stats.incrementTotalStars();
+    stats.incrementTotalSold();
     statsRepository.save(stats);      // Operation 2: NEVER EXECUTES
 }
 ```
 
-**Result:** Game has +1 star, but statistics not updated. Data is inconsistent.
+**Result:** Stock is reduced, but statistics not updated. Data is inconsistent.
 
 ### With `@Transactional` (GOOD)
 
 ```java
 @Transactional
-public void addStarWithStatistics(Long gameId) {
-    game.addStar();
-    gameRepository.save(game);        // Operation 1: SUCCEEDS
+public void buyWithStatistics(Long productId) {
+    product.buy();
+    productRepository.save(product);        // Operation 1: SUCCEEDS
 
     // Exception thrown here - network error, database crash, etc.
 
-    stats.incrementTotalStars();
+    stats.incrementTotalSold();
     statsRepository.save(stats);      // Operation 2: NEVER EXECUTES
 }
 ```
 
-**Result:** BOTH operations rolled back. Game still has original star count. Data is consistent.
+**Result:** BOTH operations rolled back. Product still has original stock. Data is consistent.
 
 ## Demo Endpoints
 
-### Check Game State
+### Check Product State
 
 ```bash
-curl http://localhost:8080/demo/game/1
+curl http://localhost:8080/demo/product/1
 ```
 
-Returns current game title and star count.
+Returns current product name and stock.
 
 ### Test WITH Transaction (Rollback Works)
 
 ```bash
 # Check initial state
-curl http://localhost:8080/demo/game/1
-# Output: Stars: 5
+curl http://localhost:8080/demo/product/1
+# Output: Stock: 5
 
 # Trigger failure with @Transactional
 curl -X POST http://localhost:8080/demo/explicit-failure/1
 # Output: Exception thrown, rollback successful
 
 # Verify rollback worked
-curl http://localhost:8080/demo/game/1
-# Output: Stars: 5 (unchanged - rollback worked!)
+curl http://localhost:8080/demo/product/1
+# Output: Stock: 5 (unchanged - rollback worked!)
 ```
 
 ### Test WITHOUT Transaction (No Rollback - Data Corrupted)
 
 ```bash
 # Check initial state
-curl http://localhost:8080/demo/game/1
-# Output: Stars: 5
+curl http://localhost:8080/demo/product/1
+# Output: Stock: 5
 
 # Trigger failure WITHOUT @Transactional
 curl -X POST http://localhost:8080/demo/no-transaction/1
 # Output: Exception thrown, NO ROLLBACK
 
 # Verify no rollback (data corrupted)
-curl http://localhost:8080/demo/game/1
-# Output: Stars: 6 (increased - no rollback, data inconsistent!)
+curl http://localhost:8080/demo/product/1
+# Output: Stock: 6 (increased - no rollback, data inconsistent!)
 ```
 
 ### Test Conditional Failure
@@ -129,19 +129,19 @@ curl http://localhost:8080/demo/game/1
 ```bash
 # With failure flag (should rollback)
 curl -X POST "http://localhost:8080/demo/conditional/1?fail=true"
-# Output: Rollback successful, stars unchanged
+# Output: Rollback successful, stock unchanged
 
 # Without failure flag (should succeed)
 curl -X POST "http://localhost:8080/demo/conditional/1?fail=false"
-# Output: Success, stars incremented
+# Output: Success, stock incremented
 ```
 
 ### Test Business Rule Violation
 
 ```bash
-# Transfer stars between games
-# If target game would exceed 100 stars, transfer fails and rolls back
-curl -X POST "http://localhost:8080/demo/transfer?from=1&to=2&stars=10"
+# Transfer stock between products
+# If target product would exceed 100 units, transfer fails and rolls back
+curl -X POST "http://localhost:8080/demo/transfer?from=1&to=2&stock=10"
 ```
 
 ## Five Ways to Simulate Failures
@@ -152,7 +152,7 @@ The demo includes five different methods to simulate operation 2 failing:
 2. **Database Constraint Violation** - Violate unique constraint (most realistic)
 3. **Null Pointer Exception** - Simulate unexpected runtime error
 4. **Conditional Failure** - Use boolean flag to control failure (best for testing)
-5. **Business Rule Violation** - Validate business logic (e.g., max stars limit)
+5. **Business Rule Violation** - Validate business logic (e.g., max stock limit)
 
 ## Key Architectural Decisions
 
@@ -175,7 +175,7 @@ Repository  Repository
 **Use it when:**
 - Multiple database operations must succeed together
 - Business logic spans multiple tables
-- Updating related entities (game + statistics)
+- Updating related entities (product + statistics)
 
 **Don't need it for:**
 - Single read operation (`findAll`, `findById`)
@@ -203,16 +203,16 @@ public void conditionalRollback() {
 
 ## Database Schema
 
-**games table:**
+**products table:**
 - `id` (bigserial, primary key)
-- `title` (varchar)
+- `name` (varchar)
 - `description` (text)
-- `stars` (integer, default 0)
+- `stock` (integer, default 0)
 
-**game_statistics table:**
+**product_statistics table:**
 - `id` (bigserial, primary key)
-- `game_id` (bigint, unique)
-- `total_stars` (integer, default 0)
+- `product_id` (bigint, unique)
+- `total_sold` (integer, default 0)
 - `last_updated` (timestamp)
 
 ## Proxy-Based Gotchas
@@ -227,14 +227,14 @@ Spring's `@Transactional` uses proxies, which means:
 
 Run the demo endpoints in order:
 
-1. Create a game with initial stars
+1. Create a product with initial stock
 2. Test with `@Transactional` - verify rollback works
 3. Test without `@Transactional` - observe data corruption
 4. Compare results
 
 ```
-docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM games;"
-docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM game_statistics;"
+docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM products;"
+docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM product_statistics;"
 
 docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM flyway_schema_history;"
 ```

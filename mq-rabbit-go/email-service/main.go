@@ -45,26 +45,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to declare a queue: %v", err)
 	}
-	
+
 	// Declare exchange for fan-out
 	err = ch.ExchangeDeclare(
-		"game_events", // name
-		"fanout",      // type
-		true,          // durable
-		false,         // auto-deleted
-		false,         // internal
-		false,         // no-wait
-		nil,           // arguments
+		"product_events", // name
+		"fanout",         // type
+		true,             // durable
+		false,            // auto-deleted
+		false,            // internal
+		false,            // no-wait
+		nil,              // arguments
 	)
 	if err != nil {
 		log.Fatalf("Failed to declare exchange: %v", err)
 	}
-	
+
 	// Bind queue to exchange
 	err = ch.QueueBind(
-		queue.Name,    // queue name
-		"",            // routing key
-		"game_events", // exchange
+		queue.Name,       // queue name
+		"",               // routing key
+		"product_events", // exchange
 		false,
 		nil,
 	)

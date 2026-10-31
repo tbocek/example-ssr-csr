@@ -6,7 +6,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 )
 
-func TestTransferStarsWithTransaction_Success(t *testing.T) {
+func TestTransferStockWithTransaction_Success(t *testing.T) {
 	// Arrange
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
@@ -16,35 +16,35 @@ func TestTransferStarsWithTransaction_Success(t *testing.T) {
 
 	db = mockDB
 
-	fromID, toID, stars := 1, 2, 3
+	fromID, toID, stock := 1, 2, 3
 
 	// Mock transaction
 	mock.ExpectBegin()
-	
-	// Mock SELECT from source game
-	mock.ExpectQuery("SELECT stars FROM games WHERE id = \\$1").
-		WithArgs(fromID).
-		WillReturnRows(sqlmock.NewRows([]string{"stars"}).AddRow(10))
 
-	// Mock UPDATE source game
-	mock.ExpectExec("UPDATE games SET stars = stars - \\$1 WHERE id = \\$2").
-		WithArgs(stars, fromID).
+	// Mock SELECT from source product
+	mock.ExpectQuery("SELECT stock FROM products WHERE id = \\$1").
+		WithArgs(fromID).
+		WillReturnRows(sqlmock.NewRows([]string{"stock"}).AddRow(10))
+
+	// Mock UPDATE source product
+	mock.ExpectExec("UPDATE products SET stock = stock - \\$1 WHERE id = \\$2").
+		WithArgs(stock, fromID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	// Mock SELECT target game
-	mock.ExpectQuery("SELECT stars FROM games WHERE id = \\$1").
+	// Mock SELECT target product
+	mock.ExpectQuery("SELECT stock FROM products WHERE id = \\$1").
 		WithArgs(toID).
-		WillReturnRows(sqlmock.NewRows([]string{"stars"}).AddRow(5))
+		WillReturnRows(sqlmock.NewRows([]string{"stock"}).AddRow(5))
 
-	// Mock UPDATE target game
-	mock.ExpectExec("UPDATE games SET stars = stars \\+ \\$1 WHERE id = \\$2").
-		WithArgs(stars, toID).
+	// Mock UPDATE target product
+	mock.ExpectExec("UPDATE products SET stock = stock \\+ \\$1 WHERE id = \\$2").
+		WithArgs(stock, toID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	mock.ExpectCommit()
 
 	// Act
-	err = transferStarsWithTransaction(fromID, toID, stars)
+	err = transferStockWithTransaction(fromID, toID, stock)
 
 	// Assert
 	if err != nil {
@@ -56,7 +56,7 @@ func TestTransferStarsWithTransaction_Success(t *testing.T) {
 	}
 }
 
-func TestTransferStarsWithTransaction_InsufficientStars(t *testing.T) {
+func TestTransferStockWithTransaction_InsufficientStock(t *testing.T) {
 	// Arrange
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
@@ -66,23 +66,23 @@ func TestTransferStarsWithTransaction_InsufficientStars(t *testing.T) {
 
 	db = mockDB
 
-	fromID, toID, stars := 1, 2, 10
+	fromID, toID, stock := 1, 2, 10
 
 	mock.ExpectBegin()
-	
-	// Mock SELECT from source game with insufficient stars
-	mock.ExpectQuery("SELECT stars FROM games WHERE id = \\$1").
+
+	// Mock SELECT from source product with insufficient stock
+	mock.ExpectQuery("SELECT stock FROM products WHERE id = \\$1").
 		WithArgs(fromID).
-		WillReturnRows(sqlmock.NewRows([]string{"stars"}).AddRow(5))
+		WillReturnRows(sqlmock.NewRows([]string{"stock"}).AddRow(5))
 
 	mock.ExpectRollback()
 
 	// Act
-	err = transferStarsWithTransaction(fromID, toID, stars)
+	err = transferStockWithTransaction(fromID, toID, stock)
 
 	// Assert
 	if err == nil {
-		t.Error("expected error for insufficient stars, got nil")
+		t.Error("expected error for insufficient stock, got nil")
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -90,7 +90,7 @@ func TestTransferStarsWithTransaction_InsufficientStars(t *testing.T) {
 	}
 }
 
-func TestTransferStarsWithTransaction_ExceedsMaximum(t *testing.T) {
+func TestTransferStockWithTransaction_ExceedsMaximum(t *testing.T) {
 	// Arrange
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
@@ -100,29 +100,29 @@ func TestTransferStarsWithTransaction_ExceedsMaximum(t *testing.T) {
 
 	db = mockDB
 
-	fromID, toID, stars := 1, 2, 10
+	fromID, toID, stock := 1, 2, 10
 
 	mock.ExpectBegin()
-	
-	// Mock SELECT from source game
-	mock.ExpectQuery("SELECT stars FROM games WHERE id = \\$1").
-		WithArgs(fromID).
-		WillReturnRows(sqlmock.NewRows([]string{"stars"}).AddRow(20))
 
-	// Mock UPDATE source game
-	mock.ExpectExec("UPDATE games SET stars = stars - \\$1 WHERE id = \\$2").
-		WithArgs(stars, fromID).
+	// Mock SELECT from source product
+	mock.ExpectQuery("SELECT stock FROM products WHERE id = \\$1").
+		WithArgs(fromID).
+		WillReturnRows(sqlmock.NewRows([]string{"stock"}).AddRow(20))
+
+	// Mock UPDATE source product
+	mock.ExpectExec("UPDATE products SET stock = stock - \\$1 WHERE id = \\$2").
+		WithArgs(stock, fromID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	// Mock SELECT target game with 95 stars (would exceed 100)
-	mock.ExpectQuery("SELECT stars FROM games WHERE id = \\$1").
+	// Mock SELECT target product with 95 units (would exceed 100)
+	mock.ExpectQuery("SELECT stock FROM products WHERE id = \\$1").
 		WithArgs(toID).
-		WillReturnRows(sqlmock.NewRows([]string{"stars"}).AddRow(95))
+		WillReturnRows(sqlmock.NewRows([]string{"stock"}).AddRow(95))
 
 	mock.ExpectRollback()
 
 	// Act
-	err = transferStarsWithTransaction(fromID, toID, stars)
+	err = transferStockWithTransaction(fromID, toID, stock)
 
 	// Assert
 	if err == nil {
@@ -134,7 +134,7 @@ func TestTransferStarsWithTransaction_ExceedsMaximum(t *testing.T) {
 	}
 }
 
-func TestTransferStarsWithoutTransaction_FailsAfterDeduction(t *testing.T) {
+func TestTransferStockWithoutTransaction_FailsAfterDeduction(t *testing.T) {
 	// Arrange
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
@@ -144,18 +144,18 @@ func TestTransferStarsWithoutTransaction_FailsAfterDeduction(t *testing.T) {
 
 	db = mockDB
 
-	fromID, toID, stars := 1, 2, 3
+	fromID, toID, stock := 1, 2, 3
 
-	// Mock UPDATE source game (succeeds)
-	mock.ExpectExec("UPDATE games SET stars = stars - \\$1 WHERE id = \\$2").
-		WithArgs(stars, fromID).
+	// Mock UPDATE source product (succeeds)
+	mock.ExpectExec("UPDATE products SET stock = stock - \\$1 WHERE id = \\$2").
+		WithArgs(stock, fromID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	// The function always returns error (simulated failure)
 	// No second UPDATE is expected
 
 	// Act
-	err = transferStarsWithoutTransaction(fromID, toID, stars)
+	err = transferStockWithoutTransaction(fromID, toID, stock)
 
 	// Assert
 	if err == nil {
@@ -163,13 +163,13 @@ func TestTransferStarsWithoutTransaction_FailsAfterDeduction(t *testing.T) {
 	}
 
 	// This demonstrates the problem: first UPDATE committed, but function failed
-	// In real scenario, stars would be deducted but never added
+	// In real scenario, stock would be deducted but never added
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Errorf("unfulfilled expectations: %v", err)
 	}
 }
 
-func TestAddStarWithTransaction_Success(t *testing.T) {
+func TestMoveStockWithTransaction_Success(t *testing.T) {
 	// Arrange
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
@@ -179,29 +179,29 @@ func TestAddStarWithTransaction_Success(t *testing.T) {
 
 	db = mockDB
 
-	gameID := 2
+	productID := 2
 
 	mock.ExpectBegin()
-	
-	// Mock SELECT target game
-	mock.ExpectQuery("SELECT stars FROM games WHERE id = \\$1").
-		WithArgs(gameID).
-		WillReturnRows(sqlmock.NewRows([]string{"stars"}).AddRow(5))
 
-	// Mock UPDATE target game (deduct)
-	mock.ExpectExec("UPDATE games SET stars = stars - 1 WHERE id = \\$1").
-		WithArgs(gameID).
+	// Mock SELECT target product
+	mock.ExpectQuery("SELECT stock FROM products WHERE id = \\$1").
+		WithArgs(productID).
+		WillReturnRows(sqlmock.NewRows([]string{"stock"}).AddRow(5))
+
+	// Mock UPDATE target product (deduct)
+	mock.ExpectExec("UPDATE products SET stock = stock - 1 WHERE id = \\$1").
+		WithArgs(productID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
-	// Mock UPDATE game 1 (add)
-	mock.ExpectExec("UPDATE games SET stars = stars \\+ 1 WHERE id = \\$1").
+	// Mock UPDATE product 1 (add)
+	mock.ExpectExec("UPDATE products SET stock = stock \\+ 1 WHERE id = \\$1").
 		WithArgs(1).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	mock.ExpectCommit()
 
 	// Act
-	err = addStarWithTransaction(gameID)
+	err = moveStockWithTransaction(productID)
 
 	// Assert
 	if err != nil {
@@ -213,7 +213,7 @@ func TestAddStarWithTransaction_Success(t *testing.T) {
 	}
 }
 
-func TestAddStarWithTransaction_NoStarsToTransfer(t *testing.T) {
+func TestMoveStockWithTransaction_NoStockToTransfer(t *testing.T) {
 	// Arrange
 	mockDB, mock, err := sqlmock.New()
 	if err != nil {
@@ -223,23 +223,23 @@ func TestAddStarWithTransaction_NoStarsToTransfer(t *testing.T) {
 
 	db = mockDB
 
-	gameID := 2
+	productID := 2
 
 	mock.ExpectBegin()
-	
-	// Mock SELECT target game with 0 stars
-	mock.ExpectQuery("SELECT stars FROM games WHERE id = \\$1").
-		WithArgs(gameID).
-		WillReturnRows(sqlmock.NewRows([]string{"stars"}).AddRow(0))
+
+	// Mock SELECT target product with 0 units
+	mock.ExpectQuery("SELECT stock FROM products WHERE id = \\$1").
+		WithArgs(productID).
+		WillReturnRows(sqlmock.NewRows([]string{"stock"}).AddRow(0))
 
 	mock.ExpectRollback()
 
 	// Act
-	err = addStarWithTransaction(gameID)
+	err = moveStockWithTransaction(productID)
 
 	// Assert
 	if err == nil {
-		t.Error("expected error for no stars, got nil")
+		t.Error("expected error for no stock, got nil")
 	}
 
 	if err := mock.ExpectationsWereMet(); err != nil {

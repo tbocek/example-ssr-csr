@@ -1,5 +1,5 @@
 module email-service
 
-go 1.25
+go 1.27
 
 require github.com/pebbe/zmq4 v1.4.0

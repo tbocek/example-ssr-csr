@@ -9,7 +9,7 @@ services:
     depends_on:
       - backend
   kafka:
-    image: confluentinc/cp-kafka:7.4.0
+    image: confluentinc/cp-kafka:8.4.0
     ports:
       - "9092:9092"
     environment:

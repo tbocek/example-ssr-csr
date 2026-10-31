@@ -1,6 +1,0 @@
-CREATE TABLE games (
-    id BIGSERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    description TEXT NOT NULL,
-    stars INTEGER DEFAULT 0
-);

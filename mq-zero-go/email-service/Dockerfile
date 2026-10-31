@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-FROM golang:1.25-alpine AS builder
+FROM golang:1.27-alpine AS builder
 RUN apk add --no-cache build-base zeromq-dev
 WORKDIR /app
 COPY go.mod go.sum ./

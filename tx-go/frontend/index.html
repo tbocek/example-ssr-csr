@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Management - Transaction Demo</title>
+    <title>Shop - Transaction Demo</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><circle cx='5' cy='5' r='4' fill='%23007bff'/></svg>">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <style>
@@ -59,19 +59,9 @@
         .btn:hover {
             background-color: #45a049;
         }
-        .star-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 5px;
-        }
-        .star-btn:hover {
-            transform: scale(1.2);
-        }
-        .star-count {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
+        button:disabled {
+            background-color: #aaa !important;
+            cursor: not-allowed;
         }
         .loading {
             text-align: center;
@@ -103,55 +93,54 @@
 </head>
 <body>
     <div id="app">
-        <h1>Game Management - Transaction Demo (Go)</h1>
+        <h1>Shop - Transaction Demo (Go)</h1>
         
-        <h2>Add New Game</h2>
-        <form @submit.prevent="addGame">
-            <input type="text" v-model="newGame.title" placeholder="Game Title" required />
-            <textarea v-model="newGame.description" placeholder="Description" required></textarea>
-            <button type="submit" class="btn">Add Game</button>
+        <h2>Add New Product</h2>
+        <form @submit.prevent="addProduct">
+            <input type="text" v-model="newProduct.name" placeholder="Product Name" required />
+            <textarea v-model="newProduct.description" placeholder="Description" required></textarea>
+            <input type="number" v-model.number="newProduct.price" placeholder="Price (CHF)" min="0" step="0.01" required />
+            <input type="number" v-model.number="newProduct.stock" placeholder="Stock" min="0" step="1" required />
+            <button type="submit" class="btn">Add Product</button>
         </form>
         
-        <h2>Game List</h2>
-        <div v-if="loading" class="loading">Loading games...</div>
+        <h2>Product List</h2>
+        <div v-if="loading" class="loading">Loading products...</div>
         <div v-else-if="error" style="color: red;">Error: {{ error }}</div>
-        <table v-else-if="games.length > 0">
+        <table v-else-if="products.length > 0">
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Title</th>
+                    <th>Name</th>
                     <th>Description</th>
-                    <th>Stars</th>
+                    <th>Price</th>
+                    <th>Stock</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
-                <tr v-for="game in games" :key="game.id">
-                    <td>{{ game.id }}</td>
-                    <td>{{ game.title }}</td>
-                    <td>{{ game.description }}</td>
+                <tr v-for="product in products" :key="product.id">
+                    <td>{{ product.id }}</td>
+                    <td>{{ product.name }}</td>
+                    <td>{{ product.description }}</td>
+                    <td>CHF {{ product.price.toFixed(2) }}</td>
+                    <td>{{ product.stock }}</td>
                     <td>
-                        <div class="star-count">
-                            <button class="star-btn" @click="addStar(game.id)">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="#FFD700" stroke="#FFA500" stroke-width="1">
-                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                                </svg>
-                            </button>
-                            <span>{{ game.stars }}</span>
-                        </div>
+                        <button class="btn" :disabled="product.stock === 0" @click="buy(product.id)">{{ product.stock === 0 ? 'Sold out' : 'Buy' }}</button>
                     </td>
                 </tr>
             </tbody>
         </table>
-        <p v-else>No games found. Add one above!</p>
+        <p v-else>No products found. Add one above!</p>
 
         <div class="demo-section">
-            <h2>Transfer Stars</h2>
-            <p>Transfer stars between two games.</p>
+            <h2>Transfer Stock</h2>
+            <p>Transfer stock between two products.</p>
             <form @submit.prevent="transferWithTransaction">
                 <div class="transfer-grid">
-                    <input type="number" v-model.number="transfer.fromId" placeholder="From Game ID" required min="1" />
-                    <input type="number" v-model.number="transfer.toId" placeholder="To Game ID" required min="1" />
-                    <input type="number" v-model.number="transfer.stars" placeholder="Stars to Transfer" required min="1" />
+                    <input type="number" v-model.number="transfer.fromId" placeholder="From Product ID" required min="1" />
+                    <input type="number" v-model.number="transfer.toId" placeholder="To Product ID" required min="1" />
+                    <input type="number" v-model.number="transfer.stock" placeholder="Units to Transfer" required min="1" />
                 </div>
                 <button type="submit" class="btn">Transfer WITH Transaction</button>
                 <button type="button" class="btn" @click="transferWithoutTransaction" style="background-color: #6c757d; margin-left: 10px;">Transfer WITHOUT Transaction</button>
@@ -171,15 +160,17 @@
         createApp({
             data() {
                 return {
-                    games: [],
-                    newGame: {
-                        title: '',
-                        description: ''
+                    products: [],
+                    newProduct: {
+                        name: '',
+                        description: '',
+                        price: null,
+                        stock: null
                     },
                     transfer: {
                         fromId: null,
                         toId: null,
-                        stars: 1
+                        stock: 1
                     },
                     loading: true,
                     error: null,
@@ -187,53 +178,55 @@
                 }
             },
             mounted() {
-                this.fetchGames();
+                this.fetchProducts();
             },
             methods: {
-                async fetchGames() {
+                async fetchProducts() {
                     try {
-                        const response = await fetch(`${API_URL}/games`);
-                        if (!response.ok) throw new Error('Failed to fetch games');
-                        this.games = await response.json();
+                        const response = await fetch(`${API_URL}/products`);
+                        if (!response.ok) throw new Error('Failed to fetch products');
+                        this.products = await response.json();
                         this.loading = false;
                     } catch (err) {
                         this.error = err.message;
                         this.loading = false;
                     }
                 },
-                async addGame() {
+                async addProduct() {
                     try {
-                        const response = await fetch(`${API_URL}/games`, {
+                        const response = await fetch(`${API_URL}/products`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(this.newGame)
+                            body: JSON.stringify(this.newProduct)
                         });
                         
-                        if (!response.ok) throw new Error('Failed to add game');
+                        if (!response.ok) throw new Error('Failed to add product');
                         
-                        this.newGame.title = '';
-                        this.newGame.description = '';
-                        await this.fetchGames();
+                        this.newProduct.name = '';
+                        this.newProduct.description = '';
+                        this.newProduct.price = null;
+                        this.newProduct.stock = null;
+                        await this.fetchProducts();
                     } catch (err) {
-                        alert('Error adding game: ' + err.message);
+                        alert('Error adding product: ' + err.message);
                     }
                 },
-                async addStar(gameId) {
+                async buy(productId) {
                     try {
-                        const response = await fetch(`${API_URL}/games/${gameId}/star`, {
+                        const response = await fetch(`${API_URL}/products/${productId}/buy`, {
                             method: 'POST'
                         });
                         
-                        if (!response.ok) throw new Error('Failed to add star');
+                        if (!response.ok) throw new Error('Failed to buy product');
                         
-                        const game = this.games.find(g => g.id === gameId);
-                        if (game) game.stars++;
+                        const product = this.products.find(g => g.id === productId);
+                        if (product) product.stock--;
                     } catch (err) {
-                        alert('Error adding star: ' + err.message);
+                        alert('Error buying product: ' + err.message);
                     }
                 },
                 async transferWithTransaction() {
-                    console.log('Transferring stars WITH transaction:', this.transfer);
+                    console.log('Transferring stock WITH transaction:', this.transfer);
                     try {
                         const response = await fetch(`${API_URL}/demo/transfer`, {
                             method: 'POST',
@@ -241,7 +234,7 @@
                             body: JSON.stringify({
                                 from_id: this.transfer.fromId,
                                 to_id: this.transfer.toId,
-                                stars: this.transfer.stars
+                                stock: this.transfer.stock
                             })
                         });
                         
@@ -249,24 +242,24 @@
                         console.log('Transfer result:', result);
                         this.demoResult = JSON.stringify(result, null, 2);
                         
-                        await this.fetchGames();
+                        await this.fetchProducts();
                         
                         if (result.success) {
                             alert('Transfer WITH transaction successful!\n' + 
-                                  'From game: ' + result.from_game.before + ' → ' + result.from_game.after + '\n' +
-                                  'To game: ' + result.to_game.before + ' → ' + result.to_game.after);
+                                  'From product: ' + result.from_product.before + ' → ' + result.from_product.after + '\n' +
+                                  'To product: ' + result.to_product.before + ' → ' + result.to_product.after);
                         } else {
                             alert('Transfer failed and rolled back!\n' + result.error + '\n\n' +
-                                  'From game: ' + result.from_game.before + ' → ' + result.from_game.after + '\n' +
-                                  'To game: ' + result.to_game.before + ' → ' + result.to_game.after);
+                                  'From product: ' + result.from_product.before + ' → ' + result.from_product.after + '\n' +
+                                  'To product: ' + result.to_product.before + ' → ' + result.to_product.after);
                         }
                     } catch (err) {
                         console.error('Transfer error:', err);
-                        alert('Error transferring stars: ' + err.message);
+                        alert('Error transferring stock: ' + err.message);
                     }
                 },
                 async transferWithoutTransaction() {
-                    console.log('Transferring stars WITHOUT transaction:', this.transfer);
+                    console.log('Transferring stock WITHOUT transaction:', this.transfer);
                     try {
                         const response = await fetch(`${API_URL}/demo/transfer-no-tx`, {
                             method: 'POST',
@@ -274,7 +267,7 @@
                             body: JSON.stringify({
                                 from_id: this.transfer.fromId,
                                 to_id: this.transfer.toId,
-                                stars: this.transfer.stars
+                                stock: this.transfer.stock
                             })
                         });
                         
@@ -282,12 +275,12 @@
                         console.log('Transfer result:', result);
                         this.demoResult = JSON.stringify(result, null, 2);
                         
-                        await this.fetchGames();
+                        await this.fetchProducts();
                         
                         alert('Transfer WITHOUT transaction:\n' + result.error + '\n\n' +
-                              'From game: ' + result.from_game.before + ' → ' + result.from_game.after + '\n' +
-                              'To game: ' + result.to_game.before + ' → ' + result.to_game.after + '\n\n' +
-                              'Stars were deducted from source but never added to target! Data corruption!');
+                              'From product: ' + result.from_product.before + ' → ' + result.from_product.after + '\n' +
+                              'To product: ' + result.to_product.before + ' → ' + result.to_product.after + '\n\n' +
+                              'Stock was deducted from source but never added to target! Data corruption!');
                     } catch (err) {
                         console.error('Transfer error:', err);
                         alert('Error: ' + err.message);

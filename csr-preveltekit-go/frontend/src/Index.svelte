@@ -1,131 +1,135 @@
 <script>
     const API_URL = "/api";
 
-    let newGame = $state({ title: "", description: "" });
-    let gamesPromise = $state(fetchGames());
+    let newProduct = $state({ name: "", description: "", price: null, stock: null });
+    let productsPromise = $state(fetchProducts());
 
-    // Fetch games
-    async function fetchGames() {
-        const response = await fetch(`${API_URL}/games`);
-        if (!response.ok) throw new Error("Failed to fetch games");
+    // Fetch products
+    async function fetchProducts() {
+        const response = await fetch(`${API_URL}/products`);
+        if (!response.ok) throw new Error("Failed to fetch products");
         return await response.json();
     }
 
-    // Add game
-    async function addGame(event) {
+    // Add product
+    async function addProduct(event) {
         event.preventDefault();
         try {
-            const response = await fetch(`${API_URL}/games`, {
+            const response = await fetch(`${API_URL}/products`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(newGame),
+                body: JSON.stringify(newProduct),
             });
 
-            if (!response.ok) throw new Error("Failed to add game");
+            if (!response.ok) throw new Error("Failed to add product");
 
             // Reset form
-            newGame.title = "";
-            newGame.description = "";
+            newProduct.name = "";
+            newProduct.description = "";
+            newProduct.price = null;
+            newProduct.stock = null;
 
             // Refresh list
-            gamesPromise = fetchGames();
+            productsPromise = fetchProducts();
         } catch (err) {
-            alert("Error adding game: " + err.message);
+            alert("Error adding product: " + err.message);
         }
     }
 
-    // Add star
-    async function addStar(gameId, games) {
+    // Add unit
+    async function buy(productId) {
         try {
-            const response = await fetch(`${API_URL}/games/${gameId}/star`, {
+            const response = await fetch(`${API_URL}/products/${productId}/buy`, {
                 method: "POST",
             });
 
-            if (!response.ok) throw new Error("Failed to add star");
+            if (!response.ok) throw new Error("Failed to buy product");
 
             // Refresh list
-            gamesPromise = fetchGames();
+            productsPromise = fetchProducts();
         } catch (err) {
-            alert("Error adding star: " + err.message);
+            alert("Error buying product: " + err.message);
         }
     }
 </script>
 
 <svelte:head>
-    <title>Game Management</title>
+    <title>Shop</title>
     <link
         rel="icon"
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><circle cx='5' cy='5' r='4' fill='%23007bff'/></svg>"
     />
 </svelte:head>
 
-<h1>Game Management - PrevelteKit Demo</h1>
+<h1>Shop - PrevelteKit Demo</h1>
 
-<h2>Add New Game</h2>
-<form onsubmit={addGame}>
+<h2>Add New Product</h2>
+<form onsubmit={addProduct}>
     <input
         type="text"
-        bind:value={newGame.title}
-        placeholder="Game Title"
+        bind:value={newProduct.name}
+        placeholder="Product Name"
         required
     />
     <textarea
-        bind:value={newGame.description}
+        bind:value={newProduct.description}
         placeholder="Description"
         required
     ></textarea>
-    <input type="submit" value="Add Game" />
+    <input
+        type="number"
+        bind:value={newProduct.price}
+        placeholder="Price (CHF)"
+        min="0"
+        step="0.01"
+        required
+    />
+    <input
+        type="number"
+        bind:value={newProduct.stock}
+        placeholder="Stock"
+        min="0"
+        step="1"
+        required
+    />
+    <input type="submit" value="Add Product" />
 </form>
 
-<h2>Game List</h2>
-{#await gamesPromise}
-    <div class="loading">Loading games...</div>
-{:then games}
-    {#if games.length > 0}
+<h2>Product List</h2>
+{#await productsPromise}
+    <div class="loading">Loading products...</div>
+{:then products}
+    {#if products.length > 0}
         <table>
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Title</th>
+                    <th>Name</th>
                     <th>Description</th>
-                    <th>Stars</th>
+                    <th>Price</th>
+                    <th>Stock</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
-                {#each games as game (game.id)}
+                {#each products as product (product.id)}
                     <tr>
-                        <td>{game.id}</td>
-                        <td>{game.title}</td>
-                        <td>{game.description}</td>
+                        <td>{product.id}</td>
+                        <td>{product.name}</td>
+                        <td>{product.description}</td>
+                        <td>CHF {product.price.toFixed(2)}</td>
+                        <td>{product.stock}</td>
                         <td>
-                            <div class="star-count">
-                                <button
-                                    class="star-btn"
-                                    onclick={() => addStar(game.id, games)}
-                                    aria-label="star button"
-                                >
-                                    <svg
-                                        width="24"
-                                        height="24"
-                                        viewBox="0 0 24 24"
-                                        fill="#FFD700"
-                                        stroke="#FFA500"
-                                        stroke-width="1"
-                                    >
-                                        <path
-                                            d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                                        />
-                                    </svg>
-                                </button>
-                                <span>{game.stars}</span>
-                            </div>
+                            <button disabled={product.stock === 0} onclick={() => buy(product.id)}>
+                                {product.stock === 0 ? "Sold out" : "Buy"}
+                            </button>
                         </td>
                     </tr>
                 {/each}
             </tbody>
         </table>
     {:else}
-        <p>No games found. Add one above!</p>
+        <p>No products found. Add one above!</p>
     {/if}
 {:catch error}
     <div style="color: red;">Error: {error.message}</div>
@@ -186,19 +190,17 @@
     input[type="submit"]:hover {
         background-color: #45a049;
     }
-    .star-btn {
-        background: none;
+    button {
+        background-color: #4caf50;
+        color: white;
+        padding: 8px 16px;
         border: none;
+        border-radius: 3px;
         cursor: pointer;
-        padding: 5px;
     }
-    .star-btn:hover {
-        transform: scale(1.2);
-    }
-    .star-count {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
+    button:disabled {
+        background-color: #aaa !important;
+        cursor: not-allowed;
     }
     .loading {
         text-align: center;

@@ -7,30 +7,31 @@ const pool = new Pool({
 
 export async function initDB() {
   await pool.query(`
-    CREATE TABLE IF NOT EXISTS games (
+    CREATE TABLE IF NOT EXISTS products (
       id SERIAL PRIMARY KEY,
-      title VARCHAR(255) NOT NULL,
+      name VARCHAR(255) NOT NULL,
       description TEXT NOT NULL,
-      stars INTEGER DEFAULT 0
+      price NUMERIC(10, 2) NOT NULL DEFAULT 0,
+      stock INTEGER NOT NULL DEFAULT 0
     )
   `);
 }
 
-export async function getGames() {
-  const result = await pool.query('SELECT * FROM games ORDER BY id');
+export async function getProducts() {
+  const result = await pool.query('SELECT * FROM products ORDER BY id');
   return result.rows;
 }
 
-export async function createGame(title, description) {
+export async function createProduct(name, description, price, stock) {
   await pool.query(
-    'INSERT INTO games (title, description, stars) VALUES ($1, $2, 0)',
-    [title, description]
+    'INSERT INTO products (name, description, price, stock) VALUES ($1, $2, $3, $4)',
+    [name, description, price, stock]
   );
 }
 
-export async function incrementStar(id) {
+export async function buyProduct(id) {
   const result = await pool.query(
-    'UPDATE games SET stars = stars + 1 WHERE id = $1 RETURNING *',
+    'UPDATE products SET stock = stock - 1 WHERE id = $1 AND stock > 0 RETURNING *',
     [id]
   );
   return result.rows[0];

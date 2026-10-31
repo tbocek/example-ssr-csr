@@ -13,19 +13,20 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type GameEvent struct {
-	ID          int    `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Stars       int    `json:"stars"`
+type ProductEvent struct {
+	ID          int     `json:"id"`
+	Name        string  `json:"name"`
+	Description string  `json:"description"`
+	Price       float64 `json:"price"`
+	Stock       int     `json:"stock"`
 }
 
 type Message struct {
-	MsgID       int64           `json:"msg_id"`
-	ReadCount   int64           `json:"read_count"`
-	EnqueuedAt  time.Time       `json:"enqueued_at"`
-	VT          time.Time       `json:"vt"`
-	Message     json.RawMessage `json:"message"`
+	MsgID      int64           `json:"msg_id"`
+	ReadCount  int64           `json:"read_count"`
+	EnqueuedAt time.Time       `json:"enqueued_at"`
+	VT         time.Time       `json:"vt"`
+	Message    json.RawMessage `json:"message"`
 }
 
 var db *sql.DB
@@ -36,7 +37,7 @@ func main() {
 	// Database setup
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://postgres:postgres@db:5432/gamedb?sslmode=disable"
+		dbURL = "postgres://postgres:postgres@db:5432/shopdb?sslmode=disable"
 	}
 
 	db, err = sql.Open("postgres", dbURL)
@@ -55,7 +56,6 @@ func main() {
 	}
 	defer db.Close()
 
-	
 	queueName := "email_queue"
 	log.Printf("📧 Email service started, consuming from queue: %s", queueName)
 
@@ -79,10 +79,10 @@ func main() {
 					SELECT msg_id, read_ct, enqueued_at, vt, message 
 					FROM pgmq.read($1, $2, $3)
 				`, queueName, 30, 1).Scan(
-					&message.MsgID, 
-					&message.ReadCount, 
-					&message.EnqueuedAt, 
-					&message.VT, 
+					&message.MsgID,
+					&message.ReadCount,
+					&message.EnqueuedAt,
+					&message.VT,
 					&message.Message,
 				)
 
@@ -97,12 +97,12 @@ func main() {
 					continue
 				}
 
-				log.Printf("📧 Processing email notification (ID: %d): %s", 
+				log.Printf("📧 Processing email notification (ID: %d): %s",
 					message.MsgID, string(message.Message))
 
-				// Parse the game event
-				var gameEvent GameEvent
-				if err := json.Unmarshal(message.Message, &gameEvent); err != nil {
+				// Parse the product event
+				var productEvent ProductEvent
+				if err := json.Unmarshal(message.Message, &productEvent); err != nil {
 					log.Printf("❌ Failed to parse message: %v", err)
 					// Delete malformed message
 					db.Exec("SELECT pgmq.delete($1, $2)", queueName, message.MsgID)
@@ -121,8 +121,8 @@ func main() {
 				}
 
 				if archived {
-					log.Printf("✅ Email sent successfully for game: %s (archived message %d)",
-						gameEvent.Title, message.MsgID)
+					log.Printf("✅ Email sent successfully for product: %s (archived message %d)",
+						productEvent.Name, message.MsgID)
 				}
 			}
 		}

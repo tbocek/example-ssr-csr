@@ -60,10 +60,10 @@ func main() {
 		}
 
 		log.Printf("📧 Processing email: %s", message)
-		
+
 		// Simulate email processing
 		time.Sleep(100 * time.Millisecond)
-		
+
 		log.Printf("✅ Email sent successfully")
 	}
 }
