@@ -1,4 +1,4 @@
-# Spring Boot SSR Game Management Demo
+# Spring Boot SSR Shop Demo
 
 A minimal Spring Boot application demonstrating server-side rendering with Thymeleaf, JPA, and PostgreSQL.
 
@@ -15,15 +15,15 @@ A minimal Spring Boot application demonstrating server-side rendering with Thyme
 
 ```
 src/main/java/ch/ost/i/dsl/ssr/
-├── DemoApplication.java      # Main application entry point with sample data
-├── Game.java                  # JPA entity
-├── GameRepository.java        # JPA repository interface
-└── GameController.java        # MVC controller
+├── DemoApplication.java      # Main application entry point
+├── Product.java               # JPA entity
+├── ProductRepository.java     # JPA repository interface
+└── ProductController.java     # MVC controller
 
 src/main/resources/
 ├── application.properties     # Minimal config
 └── templates/
-    └── games.html            # Thymeleaf template
+    └── products.html         # Thymeleaf template
 ```
 
 ## Running Locally
@@ -39,25 +39,24 @@ src/main/resources/
 docker-compose up --build
 ```
 
-The application will be available at `http://localhost:8080`
+The application will be available at `http://localhost:8081`
 
 ## Features
 
-- Add games with title and description
-- List all games in a table
-- Click star button to increment star count
+- Add products with name, description, price and stock
+- List all products in a table
+- Click buy button to decrement stock (disabled when sold out)
 - Server-side HTML rendering with Thymeleaf
 - PostgreSQL persistence with automatic schema generation
-- Sample data (Zelda, Mario) loaded on startup
 
 ## SSR Flow
 
-1. Browser requests `GET /games`
+1. Browser requests `GET /products`
 2. Spring Boot controller queries PostgreSQL via JPA repository
-3. Thymeleaf merges data with `games.html` template
-4. Complete HTML with game data sent to browser
+3. Thymeleaf merges data with `products.html` template
+4. Complete HTML with product data sent to browser
 5. Browser displays content immediately (no JavaScript needed)
-6. When user clicks star: `POST /games/{id}/star` → full page reload
+6. When user clicks buy: `POST /products/{id}/buy` → full page reload
 
 ## Configuration Notes
 
@@ -69,23 +68,24 @@ This project relies heavily on Spring Boot's convention-over-configuration:
 - `spring-boot-starter-data-jpa` → Auto-implements repository methods, generates SQL
 - `@SpringBootApplication` → Component scanning, auto-configuration
 - JPA annotations → Automatic schema creation from entities
-- Return `"games"` from controller → Resolves to `templates/games.html`
+- Return `"products"` from controller → Resolves to `templates/products.html`
 
 ## Endpoints
 
-- `GET /` or `GET /games` - List all games and display add form
-- `POST /games` - Create new game
-- `POST /games/{id}/star` - Increment star count (redirects back)
+- `GET /` or `GET /products` - List all products and display add form
+- `POST /products` - Create new product
+- `POST /products/{id}/buy` - Decrement stock (redirects back)
 
 ## Database
 
-Schema is auto-generated from the `Game` entity on startup (`spring.jpa.hibernate.ddl-auto=update`).
+Schema is auto-generated from the `Product` entity on startup (`spring.jpa.hibernate.ddl-auto=update`).
 
-Table: `games`
+Table: `products`
 - `id` (bigserial, primary key)
-- `title` (varchar)
-- `description` (text)
-- `stars` (integer, default 0)
+- `name` (varchar)
+- `description` (varchar)
+- `price` (numeric(10,2))
+- `stock` (integer)
 
 Data persists in directory `.db` in the project directory.
 

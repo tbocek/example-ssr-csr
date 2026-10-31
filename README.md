@@ -1,6 +1,6 @@
 # SSR vs CSR vs Hybrid Rendering Examples
 
-This repository contains three implementations of the same Game Management application, demonstrating different rendering approaches: Server-Side Rendering (SSR), Client-Side Rendering (CSR), and Hybrid Rendering with PrevelteKit.
+This repository contains examples demonstrating different rendering approaches: Server-Side Rendering (SSR) with a shop application, and Client-Side Rendering (CSR) and Hybrid Rendering with PrevelteKit with a Game Management application.
 
 ## Projects
 
@@ -100,7 +100,7 @@ All three examples implement a three-tier architecture:
 ## Request Flow Comparison
 
 ### SSR Flow
-1. Browser requests `/games`
+1. Browser requests `/products`
 2. Spring Boot controller queries database
 3. Thymeleaf merges data with template server-side
 4. Complete HTML sent to browser
@@ -153,7 +153,7 @@ docker compose up --build
 
 ## Common Features
 
-All three implementations provide the same functionality:
+The CSR and Hybrid implementations provide the same functionality (the SSR example is a shop: add products, list them, buy to decrement stock):
 - ✅ Add games with title and description
 - ✅ List all games in a table
 - ✅ Click star button to increment count
