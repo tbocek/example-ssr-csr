@@ -1,0 +1,15 @@
+{
+  "name": "ssr-react-hydration-error",
+  "version": "1.0.0",
+  "description": "Minimal React SSR example with a hydration error",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild client.jsx --bundle --jsx=automatic --define:process.env.NODE_ENV='\"development\"' --outfile=dist/client.js && esbuild server.jsx --bundle --jsx=automatic --platform=node --format=esm --packages=external --outfile=dist/server.js",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "esbuild": "^0.28.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  }
+}
