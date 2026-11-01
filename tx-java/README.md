@@ -13,16 +13,13 @@ A minimal Spring Boot application demonstrating transaction management with `@Tr
 ## Project Structure
 
 ```
-src/main/java/ch/ost/i/dsl/ssr/
+src/main/java/ch/ost/i/dsl/tx/
 ├── DemoApplication.java                    # Main application entry point
 ├── Product.java                               # JPA entity for products
 ├── ProductRepository.java                     # JPA repository for products
 ├── ProductStatistics.java                     # JPA entity for statistics
 ├── ProductStatisticsRepository.java           # JPA repository for statistics
 ├── ProductService.java                        # Service layer with @Transactional
-├── ProductServiceWithFailureDemo.java         # Demo service with simulated failures
-├── SimpleTransactionDemo.java              # Simplest possible demonstration
-├── TransactionDemoController.java          # REST endpoints for testing
 └── ProductController.java                     # MVC controller
 ```
 
@@ -82,77 +79,55 @@ public void buyWithStatistics(Long productId) {
 
 **Result:** BOTH operations rolled back. Product still has original stock. Data is consistent.
 
-## Demo Endpoints
+## Endpoints
 
-### Check Product State
+The app is server-rendered: all routes return HTML or redirect back to `/products`.
 
-```bash
-curl http://localhost:8080/demo/product/1
-```
+- `GET /` or `GET /products` - List all products and display add form
+- `POST /products` - Create new product
+- `POST /products/{id}/buy` - Decrement stock and update statistics (`buyWithStatistics`)
+- `POST /products/{fromId}/transfer/{toId}?stock=N` - Move stock between two products (`transferStock`, no form in the UI)
 
-Returns current product name and stock.
-
-### Test WITH Transaction (Rollback Works)
-
-```bash
-# Check initial state
-curl http://localhost:8080/demo/product/1
-# Output: Stock: 5
-
-# Trigger failure with @Transactional
-curl -X POST http://localhost:8080/demo/explicit-failure/1
-# Output: Exception thrown, rollback successful
-
-# Verify rollback worked
-curl http://localhost:8080/demo/product/1
-# Output: Stock: 5 (unchanged - rollback worked!)
-```
-
-### Test WITHOUT Transaction (No Rollback - Data Corrupted)
+### Create Products
 
 ```bash
-# Check initial state
-curl http://localhost:8080/demo/product/1
-# Output: Stock: 5
-
-# Trigger failure WITHOUT @Transactional
-curl -X POST http://localhost:8080/demo/no-transaction/1
-# Output: Exception thrown, NO ROLLBACK
-
-# Verify no rollback (data corrupted)
-curl http://localhost:8080/demo/product/1
-# Output: Stock: 6 (increased - no rollback, data inconsistent!)
+curl -X POST http://localhost:8080/products -d "name=Keyboard&description=Mechanical&price=99.90&stock=5"
+curl -X POST http://localhost:8080/products -d "name=Mouse&description=Wireless&price=29.90&stock=5"
 ```
 
-### Test Conditional Failure
+### Buy and Transfer
 
 ```bash
-# With failure flag (should rollback)
-curl -X POST "http://localhost:8080/demo/conditional/1?fail=true"
-# Output: Rollback successful, stock unchanged
+# Stock of product 1 goes down, total_sold in product_statistics goes up
+curl -X POST http://localhost:8080/products/1/buy
 
-# Without failure flag (should succeed)
-curl -X POST "http://localhost:8080/demo/conditional/1?fail=false"
-# Output: Success, stock incremented
+# Moves 2 units from product 1 to product 2
+curl -X POST "http://localhost:8080/products/1/transfer/2?stock=2"
+
+# More than product 1 has: redirects to /products?error=insufficient-stock, nothing changes
+curl -X POST "http://localhost:8080/products/1/transfer/2?stock=1000"
 ```
 
-### Test Business Rule Violation
+The transfer check runs before anything is modified. If a save failed after that point, `@Transactional` would roll both products back.
+
+## Demonstrating Rollback
+
+No endpoint triggers a failure. To see a rollback, edit `ProductService.buyWithStatistics` and enable the simulated failure between operation 1 and operation 2. Java rejects statements after a plain `throw` as unreachable, so write it with a condition:
+
+```java
+if (true) throw new RuntimeException("Simulated failure! Database connection lost!");
+```
+
+Rebuild with `docker compose up --build`, then:
 
 ```bash
-# Transfer stock between products
-# If target product would exceed 100 units, transfer fails and rolls back
-curl -X POST "http://localhost:8080/demo/transfer?from=1&to=2&stock=10"
+# Returns HTTP 500
+curl -i -X POST http://localhost:8080/products/1/buy
 ```
 
-## Five Ways to Simulate Failures
+Stock of product 1 is unchanged and `product_statistics` has no new sale: both operations were rolled back.
 
-The demo includes five different methods to simulate operation 2 failing:
-
-1. **Explicit Exception** - Simply throw a `RuntimeException` (simplest)
-2. **Database Constraint Violation** - Violate unique constraint (most realistic)
-3. **Null Pointer Exception** - Simulate unexpected runtime error
-4. **Conditional Failure** - Use boolean flag to control failure (best for testing)
-5. **Business Rule Violation** - Validate business logic (e.g., max stock limit)
+To see the inconsistent case, also remove `@Transactional` from the method and replace `findByIdForUpdate` with `findById` (the locking query needs a running transaction). The same request then lowers the stock while the statistics stay behind.
 
 ## Key Architectural Decisions
 
@@ -195,9 +170,9 @@ Does NOT roll back on:
 ### Custom Rollback Rules
 
 ```java
-@Transactional(rollbackFor = {IllegalStateException.class})
+@Transactional(rollbackFor = {Exception.class})
 public void conditionalRollback() {
-    // Only rolls back on IllegalStateException
+    // Also rolls back on checked exceptions, in addition to the defaults above
 }
 ```
 
@@ -207,6 +182,7 @@ public void conditionalRollback() {
 - `id` (bigserial, primary key)
 - `name` (varchar)
 - `description` (text)
+- `price` (numeric(10,2), default 0)
 - `stock` (integer, default 0)
 
 **product_statistics table:**
@@ -225,12 +201,7 @@ Spring's `@Transactional` uses proxies, which means:
 
 ## Testing
 
-Run the demo endpoints in order:
-
-1. Create a product with initial stock
-2. Test with `@Transactional` - verify rollback works
-3. Test without `@Transactional` - observe data corruption
-4. Compare results
+Follow "Demonstrating Rollback" above and compare the tables after each step:
 
 ```
 docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM products;"
@@ -239,14 +210,9 @@ docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FRO
 docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM flyway_schema_history;"
 ```
 
-The console logs will show:
-```
-Operation 1 saved
-Exception thrown: Simulated failure!
-Transaction rolled back (or not, depending on @Transactional)
-```
+The console logs show the SQL statements (`spring.jpa.show-sql=true`).
 
-Check the database to verify whether the rollback occurred.
+`ProductServiceTest` and `ProductServiceIntegrationTest` (with Testcontainers) cover the same behaviour. See the comments at the end of `Dockerfile.test` for how to run them.
 
 ## Further Reading
 

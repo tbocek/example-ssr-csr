@@ -128,6 +128,11 @@ func handleProducts(w http.ResponseWriter, r *http.Request) {
 			products = append(products, product)
 		}
 
+		if err := rows.Err(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		json.NewEncoder(w).Encode(products)
 
 	case "POST":
@@ -235,15 +240,15 @@ func handleWithoutTransaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get stock before
+	// Get stock before (this demo always changes product 1, whatever the ID)
 	var stockBefore int
-	db.QueryRow("SELECT stock FROM products WHERE id = $1", productID).Scan(&stockBefore)
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", 1).Scan(&stockBefore)
 
 	// Call NON-transaction function
 	err = moveStockWithoutTransaction(productID)
 
 	var stockAfter int
-	db.QueryRow("SELECT stock FROM products WHERE id = $1", productID).Scan(&stockAfter)
+	db.QueryRow("SELECT stock FROM products WHERE id = $1", 1).Scan(&stockAfter)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
@@ -274,6 +279,11 @@ func handleTransferStock(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.Stock < 1 {
+		http.Error(w, "stock must be positive", http.StatusBadRequest)
 		return
 	}
 
@@ -362,6 +372,11 @@ func handleTransferStockNoTx(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Stock < 1 {
+		http.Error(w, "stock must be positive", http.StatusBadRequest)
+		return
+	}
+
 	// Get stock before
 	var fromStockBefore, toStockBefore int
 	db.QueryRow("SELECT stock FROM products WHERE id = $1", req.FromID).Scan(&fromStockBefore)
@@ -410,7 +425,7 @@ func moveStockWithTransaction(productID int) error {
 
 	// Operation 1: Deduct unit from TO product
 	var toStock int
-	err = tx.QueryRow("SELECT stock FROM products WHERE id = $1", toProductID).Scan(&toStock)
+	err = tx.QueryRow("SELECT stock FROM products WHERE id = $1 FOR UPDATE", toProductID).Scan(&toStock)
 	if err != nil {
 		log.Println("Operation 1 failed (select to):", err)
 		return err
@@ -472,6 +487,12 @@ func transferStockWithTransaction(fromID, toID, stock int) error {
 		return err
 	}
 	defer tx.Rollback()
+
+	// Lock both products in ID order, so that opposite transfers can't deadlock
+	_, err = tx.Exec("SELECT id FROM products WHERE id IN ($1, $2) ORDER BY id FOR UPDATE", fromID, toID)
+	if err != nil {
+		return err
+	}
 
 	// Operation 1: Check and deduct stock from source product
 	var fromStockBefore int

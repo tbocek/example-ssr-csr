@@ -78,11 +78,13 @@ func initKafka() {
 	}
 
 	kafkaWriter = &kafka.Writer{
-		Addr:         kafka.TCP(strings.Split(brokers, ",")...),
-		Topic:        "product-events",
-		Balancer:     &kafka.LeastBytes{},
-		WriteTimeout: 10 * time.Second,
-		ReadTimeout:  10 * time.Second,
+		Addr:                   kafka.TCP(strings.Split(brokers, ",")...),
+		Topic:                  "product-events",
+		Balancer:               &kafka.LeastBytes{},
+		BatchTimeout:           10 * time.Millisecond, // the default of 1s would delay every buy
+		AllowAutoTopicCreation: true,
+		WriteTimeout:           10 * time.Second,
+		ReadTimeout:            10 * time.Second,
 	}
 
 	log.Printf("Kafka producer initialized, brokers: %s", brokers)
@@ -148,6 +150,11 @@ func handleProducts(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			products = append(products, product)
+		}
+
+		if err := rows.Err(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		json.NewEncoder(w).Encode(products)

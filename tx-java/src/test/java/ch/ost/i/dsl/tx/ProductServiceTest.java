@@ -41,7 +41,7 @@ class ProductServiceTest {
     @Test
     void buyWithStatistics_Success() {
         // Arrange
-        when(productRepository.findById(1L)).thenReturn(Optional.of(testProduct));
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testProduct));
         when(statsRepository.findByProductId(1L)).thenReturn(Optional.of(testStats));
         when(productRepository.save(any(Product.class))).thenReturn(testProduct);
         when(statsRepository.save(any(ProductStatistics.class))).thenReturn(testStats);
@@ -59,7 +59,7 @@ class ProductServiceTest {
     @Test
     void buyWithStatistics_ProductNotFound_ThrowsException() {
         // Arrange
-        when(productRepository.findById(999L)).thenReturn(Optional.empty());
+        when(productRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
         IllegalArgumentException exception = assertThrows(
@@ -76,7 +76,7 @@ class ProductServiceTest {
     void buyWithStatistics_SoldOut_ThrowsException() {
         // Arrange
         testProduct.setStock(0);
-        when(productRepository.findById(1L)).thenReturn(Optional.of(testProduct));
+        when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(testProduct));
 
         // Act & Assert
         assertThrows(IllegalStateException.class, () -> productService.buyWithStatistics(1L));

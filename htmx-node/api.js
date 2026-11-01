@@ -67,7 +67,8 @@ function renderProductRow(product) {
         <button ${product.stock === 0 ? 'disabled' : ''}
                 hx-post="/api/products/${product.id}/buy"
                 hx-target="#product-${product.id}"
-                hx-swap="outerHTML">${product.stock === 0 ? 'Sold out' : 'Buy'}</button>
+                hx-swap="outerHTML"
+                hx-status:409="swap:outerHTML">${product.stock === 0 ? 'Sold out' : 'Buy'}</button>
       </td>
     </tr>`;
 }
@@ -88,9 +89,7 @@ app.get('/api/products', async (req, res) => {
           <th>Name</th>
           <th>Description</th>
           <th>Price</th>
-          <th>Price</th>
           <th>Stock</th>
-          <th></th>
           <th></th>
         </tr>
       </thead>
@@ -132,9 +131,7 @@ app.post('/api/products', async (req, res) => {
           <th>Name</th>
           <th>Description</th>
           <th>Price</th>
-          <th>Price</th>
           <th>Stock</th>
-          <th></th>
           <th></th>
         </tr>
       </thead>
@@ -167,7 +164,12 @@ app.post('/api/products/:id/buy', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(409).send('Product not found or sold out');
+      // Sold out in the meantime: send the current row so the page isn't left showing stale stock
+      const current = await pool.query('SELECT id, name, description, price, stock FROM products WHERE id = $1', [productId]);
+      if (current.rows.length === 0) {
+        return res.status(404).send('Product not found');
+      }
+      return res.status(409).send(renderProductRow(current.rows[0]));
     }
 
     res.send(renderProductRow(result.rows[0]));

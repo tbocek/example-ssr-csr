@@ -30,7 +30,7 @@ services:
   email-service:
     build: ./email-service
     environment:
-      RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672/"
+      PUBLISHER_ADDR: "tcp://backend:5557"
     deploy:
       replicas: 2
  

@@ -83,7 +83,7 @@ Schema is auto-generated from the `Product` entity on startup (`spring.jpa.hiber
 Table: `products`
 - `id` (bigserial, primary key)
 - `name` (varchar)
-- `description` (varchar)
+- `description` (text)
 - `price` (numeric(10,2))
 - `stock` (integer)
 

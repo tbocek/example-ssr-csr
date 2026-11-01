@@ -36,52 +36,57 @@ The application will be available at `http://localhost:8081`
 ### Without Transaction (BAD)
 
 ```go
-func moveStockWithoutTransaction(productID int) error {
-    // Operation 1: Update product (NO TRANSACTION)
-    _, err := db.Exec("UPDATE products SET stock = stock + 1 WHERE id = $1", productID)
+func transferStockWithoutTransaction(fromID, toID, stock int) error {
+    // Operation 1: Deduct stock from source product (NO TRANSACTION)
+    _, err := db.Exec("UPDATE products SET stock = stock - $1 WHERE id = $2", stock, fromID)
     if err != nil {
         return err
     }
     // Stock is ALREADY SAVED to database!
-    
-    // Failure happens here
-    return errors.New("Network error!")
-    
+
+    // Simulated failure before operation 2
+    return fmt.Errorf("network error before operation 2")
+
     // Operation 2 never executes
-    // Result: Product has +1 unit, statistics not updated
 }
 ```
 
-**Result:** Product has +1 unit, but statistics not updated. Data is inconsistent.
+**Result:** Stock was deducted from the source but never added to the target. Data is inconsistent.
 
 ### With Transaction (GOOD)
 
 ```go
 func moveStockWithTransaction(productID int) error {
+    const fromProductID = 1  // Product 1 receives the unit
+    toProductID := productID // Target product loses the unit
+
     // Begin transaction
     tx, err := db.Begin()
     if err != nil {
         return err
     }
-    defer tx.Rollback()  // Rollback if commit not called
-    
-    // Operation 1: Update product
-    _, err = tx.Exec("UPDATE products SET stock = stock + 1 WHERE id = $1", productID)
+    defer tx.Rollback()  // No effect once commit has succeeded
+
+    // Operation 1: Deduct unit from target product
+    _, err = tx.Exec("UPDATE products SET stock = stock - 1 WHERE id = $1", toProductID)
     if err != nil {
         return err  // Rollback happens via defer
     }
-    
-    // Failure happens here
-    return errors.New("Network error!")  // Triggers rollback
-    
-    // Operation 2 never executes
-    
-    // Commit would go here (never reached)
-    // return tx.Commit()
+
+    // Uncomment to test rollback:
+    // return fmt.Errorf("Simulated failure! Network error!")
+
+    // Operation 2: Add unit to product 1
+    _, err = tx.Exec("UPDATE products SET stock = stock + 1 WHERE id = $1", fromProductID)
+    if err != nil {
+        return err  // Rollback happens via defer
+    }
+
+    return tx.Commit()
 }
 ```
 
-**Result:** BOTH operations rolled back. Product still has original stock. Data is consistent.
+**Result:** Both operations commit, or neither does. With the failure line uncommented, operation 1 is rolled back and the product keeps its original stock.
 
 ## API Endpoints
 
@@ -93,27 +98,42 @@ func moveStockWithTransaction(productID int) error {
 
 ### Transaction Demo Endpoints
 
+Create products first (see `POST /api/products` above or use the frontend): the database starts empty.
+
 #### Check Product State
 
 ```bash
-curl http://localhost:8080/api/demo/product/1
+curl http://localhost:8081/api/demo/product/1
 ```
 
 Returns current product details including stock.
 
-#### Test WITH Transaction (Rollback Works)
+#### Test WITH Transaction
+
+Moves one unit from product `{id}` to product 1, so use an ID other than 1 to see a change.
 
 ```bash
 # Check initial state
-curl http://localhost:8081/api/demo/product/1
-# Output: {"id":1,"name":"Mechanical Keyboard","stock":5}
+curl http://localhost:8081/api/demo/product/2
+# Output: {"id":2,"name":"Mechanical Keyboard","description":"...","price":99.9,"stock":5}
 
 # Trigger operation with transaction
-curl -X POST http://localhost:8081/api/demo/with-transaction/1
+curl -X POST http://localhost:8081/api/demo/with-transaction/2
 
-# Response shows rollback worked:
+# As shipped, the transaction commits:
 # {
-#   "error": "Simulated failure!",
+#   "success": true,
+#   "stock_before": 5,
+#   "stock_after": 4,
+#   "message": "Transaction committed successfully!"
+# }
+```
+
+To see the rollback, uncomment the `return fmt.Errorf("Simulated failure! Network error!")` line in `moveStockWithTransaction` and rebuild with `docker compose up --build`:
+
+```bash
+# {
+#   "error": "Simulated failure! Network error!",
 #   "stock_before": 5,
 #   "stock_after": 5,
 #   "rolled_back": true,
@@ -121,23 +141,18 @@ curl -X POST http://localhost:8081/api/demo/with-transaction/1
 # }
 ```
 
-#### Test WITHOUT Transaction (No Rollback - Data Corrupted)
+#### Test WITHOUT Transaction
+
+`moveStockWithoutTransaction` is a single statement with no simulated failure: it adds one unit to product 1, whatever `{id}` is, and reports product 1's stock.
 
 ```bash
-# Check initial state
-curl http://localhost:8081/api/demo/product/1
-# Output: {"stock":5}
-
-# Trigger operation WITHOUT transaction
 curl -X POST http://localhost:8081/api/demo/without-transaction/1
 
-# Response shows NO rollback:
 # {
-#   "error": "Simulated failure!",
+#   "success": true,
 #   "stock_before": 5,
 #   "stock_after": 6,
-#   "rolled_back": false,
-#   "message": "NO ROLLBACK! Stock increased despite error"
+#   "message": "Unit added to product 1 successfully (simple operation, no transaction needed)"
 # }
 ```
 
@@ -151,7 +166,7 @@ curl -X POST http://localhost:8081/api/demo/transfer \
 
 # If transfer would make product 2 exceed 100 units:
 # {
-#   "error": "Target product would exceed 100 units",
+#   "error": "target product would exceed 100 units (95 + 10 = 105)",
 #   "from_product": {"before": 50, "after": 50},
 #   "to_product": {"before": 95, "after": 95},
 #   "rolled_back": true,
@@ -164,6 +179,24 @@ curl -X POST http://localhost:8081/api/demo/transfer \
 #   "from_product": {"before": 50, "after": 40},
 #   "to_product": {"before": 30, "after": 40},
 #   "message": "Transfer successful!"
+# }
+```
+
+#### Test Transfer WITHOUT Transaction (No Rollback - Data Corrupted)
+
+This endpoint always fails between the two operations.
+
+```bash
+curl -X POST http://localhost:8081/api/demo/transfer-no-tx \
+  -H "Content-Type: application/json" \
+  -d '{"from_id":1,"to_id":2,"stock":10}'
+
+# {
+#   "error": "network error before operation 2",
+#   "from_product": {"before": 50, "after": 40},
+#   "to_product": {"before": 30, "after": 30},
+#   "rolled_back": false,
+#   "message": "NO ROLLBACK! First operation committed, second operation never executed. Data is inconsistent!"
 # }
 ```
 
@@ -220,7 +253,7 @@ public void buy(Long productId) {
 2. tx.Exec(...)                 → Operation 1
 3. tx.Exec(...)                 → Operation 2  
 4. tx.Commit()                  → Commit (data saved)
-5. defer tx.Rollback()          → Never executes (commit called)
+5. defer tx.Rollback()          → Runs, but has no effect (already committed)
 ```
 
 ### Failed Transaction
@@ -237,29 +270,28 @@ public void buy(Long productId) {
 
 1. Open `http://localhost:8081` in browser
 2. Add a few products using the form
-3. Click "With TX" button on any product
-   - Observe: Stock remain unchanged (rollback worked)
-   - Check result box: Shows `rolled_back: true`
-4. Click "Without TX" button (with confirmation)
-   - WARNING: This demonstrates data corruption
-   - Observe: Stock increased despite error
-   - Check result box: Shows `rolled_back: false`
-5. Use transfer form to move stock between products
+3. Enter two product IDs and a number of units in the "Transfer Stock" form
+4. Click "Transfer WITH Transaction"
    - If target would exceed 100 units, transfer rolls back
    - Both products remain unchanged
+5. Click "Transfer WITHOUT Transaction"
+   - WARNING: This demonstrates data corruption
+   - Observe: Stock deducted from source, never added to target
+   - Check result box: Shows `rolled_back: false`
 
 ### Verify in Database
 
 ```
-docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM products;"
-docker exec -it tx-java-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM product_statistics;"
+docker exec -it tx-go-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM products;"
+docker exec -it tx-go-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM product_statistics;"
 
 
 docker exec -it tx-go-postgres-1 psql -U postgres -d postgres -c "SELECT * FROM schema_migrations;"
 
 go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 #does not crash as product_statistics here not used...
-migrate -path migrations -database "postgres://postgres:password@localhost:5432/postgres?sslmode=disable" down 1
+#port 5432 is not published by docker-compose.yml, add it to the postgres service first
+migrate -path backend/migrations -database "postgres://postgres:password@localhost:5432/postgres?sslmode=disable" down 1
 ```
 
 ## Architecture Comparison

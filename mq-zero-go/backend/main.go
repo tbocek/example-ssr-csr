@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -29,6 +30,7 @@ type Product struct {
 var db *sql.DB
 var zmqContext *zmq4.Context
 var zmqPublisher *zmq4.Socket
+var zmqPublisherMu sync.Mutex // ZeroMQ sockets aren't thread safe
 
 func main() {
 	var err error
@@ -133,6 +135,11 @@ func handleProducts(w http.ResponseWriter, r *http.Request) {
 			products = append(products, product)
 		}
 
+		if err := rows.Err(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		json.NewEncoder(w).Encode(products)
 
 	case "POST":
@@ -187,7 +194,10 @@ func handleProductActions(w http.ResponseWriter, r *http.Request) {
 		}
 
 		body, err := json.Marshal(product)
-		_, err = zmqPublisher.Send(string(body), 0)
+		// DONTWAIT: a PUSH socket blocks without a connected peer, which would hang the buy
+		zmqPublisherMu.Lock()
+		_, err = zmqPublisher.Send(string(body), zmq4.DONTWAIT)
+		zmqPublisherMu.Unlock()
 		if err != nil {
 			log.Printf("Failed to publish ZMQ message: %v", err)
 		}

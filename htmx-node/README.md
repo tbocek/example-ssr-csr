@@ -4,7 +4,7 @@ Simple CRUD app demonstrating server-side rendering with HTMX. No client-side Ja
 
 ## Stack
 
-- **Frontend**: HTMX (hypermedia-driven)
+- **Frontend**: HTMX 4.0.0 (hypermedia-driven)
 - **Backend**: Node.js 26 + Express
 - **Database**: PostgreSQL 18
 - **Reverse Proxy**: Caddy
@@ -49,9 +49,9 @@ open http://localhost:8083
 
 ## Features
 
-- ✅ Add products (name + description)
+- ✅ Add products (name, description, price, stock)
 - ✅ List products with stock
-- ✅ Increment stock (optimistic update)
+- ✅ Buy decrements stock atomically (single `UPDATE ... WHERE stock > 0`)
 - ✅ Fast shutdown (0s grace period for backend)
 - ✅ Persistent PostgreSQL storage
 
@@ -104,11 +104,11 @@ backend:
 
 - No build step
 - No hydration
-- Smaller payload (3KB vs 100KB+ for React)
+- Smaller payload (~13KB gzipped vs 100KB+ for React)
 - Progressive enhancement
 - Server controls UI state
 
 ## Performance
 
-Initial page load: ~5KB (HTML + HTMX)
+Initial page load: ~14KB gzipped (HTML ~1KB + HTMX ~13KB)
 - vs Vue/React: 100KB+ (framework + bundle)

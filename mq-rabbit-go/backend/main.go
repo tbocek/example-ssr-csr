@@ -15,7 +15,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type Product struct {
@@ -97,6 +97,20 @@ func main() {
 		log.Fatal("Failed to declare queue:", err)
 	}
 
+	// Declare exchange: publishing to a missing one closes the channel for good
+	err = rabbitCh.ExchangeDeclare(
+		"product_events",
+		"fanout",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		log.Fatal("Failed to declare exchange:", err)
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/products", handleProducts)
 	mux.HandleFunc("POST /api/products", handleProducts)
@@ -147,6 +161,11 @@ func handleProducts(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			products = append(products, product)
+		}
+
+		if err := rows.Err(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		json.NewEncoder(w).Encode(products)

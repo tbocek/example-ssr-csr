@@ -6,13 +6,13 @@ Conversion from HTMX to Astro demonstrating Islands Architecture.
 
 **HTMX (original)**
 - SSR: Server returns HTML fragments
-- Zero JS on initial load (3KB HTMX library)
+- No app JS on initial load (~13KB gzipped HTMX library)
 - Every interaction = HTTP request
 - Server-driven UI updates
 
 **Astro (this version)**
-- SSR + Hydration: Server renders, client hydrates islands
-- ~10-15KB JS (only interactive components)
+- SSR + inline script: Server renders, a `<script>` attaches event listeners
+- ~1KB gzipped JS (one inline script, no hydration runtime)
 - Form submission + buy clicks use fetch API
 - Client-side updates (no full reload for stock)
 
@@ -25,7 +25,7 @@ Browser → Astro SSR → API Routes → PostgreSQL
 ```
 
 **What ships JS:**
-- ProductList component (`<script>` tag)
+- The `<script>` tag in `src/pages/index.astro`
 - Nothing else
 
 **What's static:**
@@ -37,27 +37,26 @@ Browser → Astro SSR → API Routes → PostgreSQL
 
 ```bash
 docker compose up --build
-# Access: http://localhost:3000
+# Access: http://localhost:4321
 ```
 
 ## Islands Architecture
 
-Only `ProductList.astro` has `<script>` tag, so only that component's JS ships to browser. Rest is static HTML.
+Only `src/pages/index.astro` has a `<script>` tag, so only that script ships to the browser. Rest is static HTML. This example uses no framework island components.
 
 **Bundle comparison:**
-- HTMX version: ~3KB (htmx.org)
-- Astro version: ~12KB (island hydration)
+- HTMX version: ~13KB gzipped (htmx.org 4.0.0)
+- Astro version: ~1KB gzipped (inline script)
 - React/Vue equivalent: 100KB+
 
 ## Trade-offs
 
 **HTMX wins:**
-- Smaller payload (3KB vs 12KB)
 - Simpler mental model
 - No build step
 
 **Astro wins:**
-- Better UX (no full reload on buy click)
+- Smaller payload (~1KB vs ~13KB)
 - Can mix frameworks (React islands, Vue islands)
 - Better for complex client-side logic
 - Static build option for blogs/docs

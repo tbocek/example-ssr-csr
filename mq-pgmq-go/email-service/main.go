@@ -105,7 +105,7 @@ func main() {
 				if err := json.Unmarshal(message.Message, &productEvent); err != nil {
 					log.Printf("❌ Failed to parse message: %v", err)
 					// Delete malformed message
-					db.Exec("SELECT pgmq.delete($1, $2)", queueName, message.MsgID)
+					db.Exec("SELECT pgmq.delete($1::text, $2::bigint)", queueName, message.MsgID)
 					continue
 				}
 

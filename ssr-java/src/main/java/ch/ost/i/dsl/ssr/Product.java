@@ -11,6 +11,8 @@ public class Product {
     private Long id;
     
     private String name;
+
+    @Column(columnDefinition = "TEXT")
     private String description;
     
     @Column(precision = 10, scale = 2)
@@ -64,11 +66,5 @@ public class Product {
     
     public void setStock(Integer stock) {
         this.stock = stock;
-    }
-    
-    public void buy() {
-        if (this.stock > 0) {
-            this.stock--;
-        }
     }
 }

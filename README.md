@@ -136,17 +136,17 @@ Each project has its own `docker-compose.yml` and can be run independently:
 # SSR (Java/Spring Boot)
 cd ssr-java
 docker compose up --build
-# Access at http://localhost:8080
+# Access at http://localhost:8081
 
 # CSR (Vue/Go)
 cd csr-vue-go
 docker compose up --build
-# Access at http://localhost:3000
+# Access at http://localhost:8081
 
 # Hybrid (PrevelteKit/Go)
 cd csr-preveltekit-go
 docker compose up --build
-# Access at http://localhost
+# Access at http://localhost:8082
 ```
 
 ---

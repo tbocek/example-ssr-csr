@@ -14,15 +14,16 @@ PrevelteKit is a minimalistic framework (<500 lines of code) that combines:
 ## Project Structure
 ```
 csr-preveltekit-go/
-├── src/
-│   └── Index.svelte        # Main Svelte 5 component with reactive state
+├── frontend/
+│   ├── src/
+│   │   └── Index.svelte    # Main Svelte 5 component with reactive state
+│   ├── package.json        # PrevelteKit + Svelte dependencies
+│   └── Dockerfile          # Multi-stage: pnpm build → Caddy
 ├── backend/
 │   ├── main.go             # Go REST API (product CRUD + stock)
 │   ├── go.mod              # Go dependencies
 │   ├── go.sum              # Dependency checksums
 │   └── Dockerfile          # Multi-stage build for Go API
-├── package.json            # PrevelteKit + Svelte dependencies
-├── Dockerfile              # Multi-stage: npm build → Caddy
 ├── Caddyfile               # Reverse proxy config (static + API)
 ├── docker-compose.yml      # Orchestrates all 3 services
 └── .db/                    # PostgreSQL data volume
@@ -34,11 +35,11 @@ csr-preveltekit-go/
 docker compose up --build
 ```
 
-Access the application at: **http://localhost**
+Access the application at: **http://localhost:8082**
 
 ## Features
 
-- ✅ Add products with name and description
+- ✅ Add products with name, description, price and stock
 - ✅ List all products in a table
 - ✅ Click Buy button to decrement stock
 - ✅ **Build-time pre-rendering** - content visible immediately
@@ -48,14 +49,14 @@ Access the application at: **http://localhost**
 ## How PrevelteKit Works
 
 ### Build Time (during `docker build`)
-1. `npm run build` executes PrevelteKit
+1. `pnpm build` executes PrevelteKit
 2. PrevelteKit uses **jsdom** to create a fake browser environment
 3. Svelte components render to HTML in this fake browser
 4. Pre-rendered HTML + JavaScript bundle saved to `/dist`
 5. Static files copied to Caddy container
 
 ### Runtime (when user visits site)
-1. Browser requests `http://localhost`
+1. Browser requests `http://localhost:8082`
 2. Caddy returns **pre-rendered HTML** with visible layout/content
 3. Browser displays content immediately (**fast FCP**)
 4. JavaScript downloads and **hydrates** the page (attaches event handlers)
@@ -66,13 +67,10 @@ Access the application at: **http://localhost**
 
 ### Key Implementation Detail
 
-The `window?.__isBuildTime` check prevents API calls during pre-rendering:
+The product list is not part of the pre-rendered data. The component starts the fetch when it is created and renders the promise with `{#await}`, so the pre-rendered HTML contains the layout, the form and the "Loading products..." state:
 
 ```javascript
-// Fetch on mount (only if not pre-rendering)
-if (!window?.__isBuildTime) {
-    fetchProducts();
-}
+let productsPromise = $state(fetchProducts());
 ```
 
 ## Architecture
@@ -91,7 +89,7 @@ if (!window?.__isBuildTime) {
 
 **Data Tier** (Database)
 - PostgreSQL for persistent storage
-- Auto-created schema from Go structs
+- Schema created on startup by `CREATE TABLE IF NOT EXISTS` in `backend/main.go`
 
 ### API Endpoints
 
@@ -177,10 +175,11 @@ CREATE TABLE products (
 ### Local Development (without Docker)
 ```bash
 # Install dependencies
-npm install
+cd frontend
+pnpm install
 
 # Start dev server with hot reload
-npm run dev
+pnpm dev
 
 # Start backend separately
 cd backend && go run main.go
@@ -191,29 +190,29 @@ docker run -p 5432:5432 -e POSTGRES_PASSWORD=password postgres:18-alpine
 
 ### Production Build
 ```bash
-# Build static files
-npm run build
+# Build static files (in frontend/)
+pnpm build
 
-# Files generated in ./dist/
+# Files generated in frontend/dist/
 # - index.html (pre-rendered)
 # - index.html.br (Brotli compressed)
 # - index.html.gz (Gzip compressed)
 # - index.html.zst (Zstandard compressed)
-# - static/ (JS, CSS bundles)
+# - js/, css/ (JS, CSS bundles)
 ```
 
 ## Docker Services
 
 ```yaml
 services:
-  frontend:  # Caddy with pre-rendered static files
-    ports: 80
+  caddy:     # Caddy with pre-rendered static files
+    ports: 8082:80
     
   backend:   # Go API server
-    ports: 8080
+    ports: 8080:8080
     
   postgres:  # Database
-    ports: 5432
+    ports: 5432:5432
 ```
 
 ## Learning Resources

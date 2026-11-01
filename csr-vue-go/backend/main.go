@@ -105,6 +105,11 @@ func handleProducts(w http.ResponseWriter, r *http.Request) {
 			products = append(products, product)
 		}
 
+		if err := rows.Err(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		json.NewEncoder(w).Encode(products)
 
 	case "POST":

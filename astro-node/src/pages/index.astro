@@ -1,7 +1,6 @@
 ---
-import { getProducts, initDB } from '../db.js';
+import { getProducts } from '../db.js';
 
-await initDB();
 const products = await getProducts();
 ---
 
@@ -87,9 +86,7 @@ const products = await getProducts();
                         <th>Name</th>
                         <th>Description</th>
                         <th>Price</th>
-                        <th>Price</th>
                         <th>Stock</th>
-                        <th></th>
                         <th></th>
                     </tr>
                 </thead>
@@ -165,7 +162,11 @@ const products = await getProducts();
                 const response = await fetch(`/api/products/${id}/buy`, {
                     method: 'POST'
                 });
-                if (!response.ok) return;
+                if (!response.ok) {
+                    // Sold out in the meantime: reload to show the current stock
+                    window.location.reload();
+                    return;
+                }
                 const product = await response.json();
                 const stockEl = document.getElementById(`stock-${id}`);
                 if (stockEl) stockEl.textContent = product.stock;

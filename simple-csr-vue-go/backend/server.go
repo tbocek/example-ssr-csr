@@ -19,7 +19,10 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 
 		var req Request
-		json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		json.NewEncoder(w).Encode(Response{Result: strings.ToUpper(req.Text)})
 	})
 

@@ -2,15 +2,15 @@
 
 ## Structure
 ```
-csr-example/
+csr-vue-go/
 ├── frontend/
 │   ├── index.html      # HTML shell (minimal, no content)
-│   ├── app.js          # Vue app (fetches data, renders UI)
-│   └── Dockerfile      # Nginx serves static files
+│   └── app.js          # Vue app (fetches data, renders UI)
 ├── backend/
 │   ├── main.go         # Go API server (returns JSON)
 │   └── Dockerfile      # Go API container
-└── docker-compose.yml  # Orchestrates both services
+├── Caddyfile           # Serves frontend/, proxies /api/* to the backend
+└── docker-compose.yml  # Orchestrates Caddy, backend and PostgreSQL
 ```
 
 ## Run
@@ -18,16 +18,16 @@ csr-example/
 docker-compose up --build
 ```
 
-Then open: http://localhost:3000
+Then open: http://localhost:8081
 
 ## How It Works (CSR Flow)
-1. Browser requests `http://localhost:3000`
-2. Nginx returns `index.html` (empty shell with `<div id="app">`)
-3. Browser downloads `app.js` (Vue framework + app code)
+1. Browser requests `http://localhost:8081`
+2. Caddy returns `index.html` (empty shell with `<div id="app">`)
+3. Browser downloads Vue (from unpkg) and `app.js` (app code)
 4. Vue executes, shows "Loading..."
-5. Vue makes API call to `http://localhost:8080/api/users`
+5. Vue makes API call to `/api/products` (Caddy proxies it to the backend)
 6. Go backend returns JSON data
-7. Vue renders user list in the DOM
+7. Vue renders product list in the DOM
 
 ## Key CSR Characteristics
 - **Empty HTML shell**: No content in initial HTML

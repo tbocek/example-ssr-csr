@@ -25,7 +25,7 @@ public class ProductService {
     @Transactional
     public void buyWithStatistics(Long productId) {
         // Operation 1: Update the product
-        Product product = productRepository.findById(productId)
+        Product product = productRepository.findByIdForUpdate(productId)
             .orElseThrow(() -> new IllegalArgumentException("Product not found"));
         if (product.getStock() < 1) {
             throw new IllegalStateException("Product is sold out");
@@ -52,6 +52,12 @@ public class ProductService {
      */
     @Transactional
     public void transferStock(Long fromProductId, Long toProductId, int stockToTransfer) {
+        if (stockToTransfer < 1) {
+            throw new IllegalArgumentException("Stock to transfer must be positive");
+        }
+        
+        productRepository.lockInIdOrder(java.util.List.of(fromProductId, toProductId));
+        
         Product fromProduct = productRepository.findById(fromProductId)
             .orElseThrow(() -> new IllegalArgumentException("Source product not found"));
         Product toProduct = productRepository.findById(toProductId)

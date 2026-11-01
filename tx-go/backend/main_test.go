@@ -20,6 +20,9 @@ func TestTransferStockWithTransaction_Success(t *testing.T) {
 
 	// Mock transaction
 	mock.ExpectBegin()
+	mock.ExpectExec("SELECT id FROM products").
+		WithArgs(fromID, toID).
+		WillReturnResult(sqlmock.NewResult(0, 2))
 
 	// Mock SELECT from source product
 	mock.ExpectQuery("SELECT stock FROM products WHERE id = \\$1").
@@ -69,6 +72,9 @@ func TestTransferStockWithTransaction_InsufficientStock(t *testing.T) {
 	fromID, toID, stock := 1, 2, 10
 
 	mock.ExpectBegin()
+	mock.ExpectExec("SELECT id FROM products").
+		WithArgs(fromID, toID).
+		WillReturnResult(sqlmock.NewResult(0, 2))
 
 	// Mock SELECT from source product with insufficient stock
 	mock.ExpectQuery("SELECT stock FROM products WHERE id = \\$1").
@@ -103,6 +109,9 @@ func TestTransferStockWithTransaction_ExceedsMaximum(t *testing.T) {
 	fromID, toID, stock := 1, 2, 10
 
 	mock.ExpectBegin()
+	mock.ExpectExec("SELECT id FROM products").
+		WithArgs(fromID, toID).
+		WillReturnResult(sqlmock.NewResult(0, 2))
 
 	// Mock SELECT from source product
 	mock.ExpectQuery("SELECT stock FROM products WHERE id = \\$1").

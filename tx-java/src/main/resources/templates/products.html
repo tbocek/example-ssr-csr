@@ -63,6 +63,14 @@
 </head>
 <body>
     <h1>Shop - SSR Demo</h1>
+
+    <div th:if="${param.error}" th:switch="${param.error[0]}" style="color: #c00; margin: 10px 0;">
+        <p th:case="'sold-out'">That product is sold out.</p>
+        <p th:case="'not-found'">That product no longer exists.</p>
+        <p th:case="'insufficient-stock'">Not enough stock to transfer.</p>
+        <p th:case="'invalid-transfer'">Invalid transfer: check the product IDs and the amount.</p>
+        <p th:case="*">Something went wrong.</p>
+    </div>
     
     <h2>Add New Product</h2>
     <form th:action="@{/products}" th:object="${newProduct}" method="post">
